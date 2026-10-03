@@ -433,6 +433,35 @@ export const DriverDashboard = () => {
             </div>
           )}
 
+          {/* Recent Completed Trip Banner (When journey completes, restore clean dashboard) */}
+          {completedRides.length > 0 && inProgressRides.length === 0 && (
+            <div className="bg-emerald-50 border-2 border-emerald-300 rounded-3xl p-5 sm:p-6 text-slate-900 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">Trip Completed</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">Normal Dashboard Restored</span>
+                  </div>
+                  <h4 className="text-base font-black text-slate-900 mt-0.5">
+                    {completedRides[0].from} → {completedRides[0].to}
+                  </h4>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {completedRides[0].date || 'Today'} • Shared Cost: ₹{completedRides[0].sharedCostPerSeat} / seat • Cancellation deposit (₹{completedRides[0].cancellationDeposit || 250}) refunded to escrow.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveDriverTab('history')}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition shrink-0"
+              >
+                View Trip History
+              </button>
+            </div>
+          )}
+
           {/* Active Ride Widget (if active) */}
           {currentActiveRide?.status === 'in_progress' && (
             <div className="space-y-4">

@@ -303,7 +303,7 @@ export const AdminDashboard = () => {
           </div>
 
           {/* Active Rides in Progress & Immediate Completion Section */}
-          {activeRidesCount > 0 && (
+          {rides.filter((r) => r.status === 'in_progress' || (['scheduled', 'active', 'published'].includes(r.status) && bookings.some(b => b.rideId === r.id && b.status === 'confirmed'))).length > 0 && (
             <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border-2 border-emerald-400/40 rounded-3xl p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -312,11 +312,11 @@ export const AdminDashboard = () => {
                   </div>
                   <div>
                     <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                      Live Highway Rides in Progress ({activeRidesCount})
+                      Live Highway Rides & Verified Trips Active
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
                     </h3>
                     <p className="text-xs text-slate-500">
-                      Real-time active carpools. Admin can complete any ride here to release deposits and return both parties to normal dashboard.
+                      Real-time active carpools. Admin can complete any ride here to finish journey, release deposits, and restore both passenger & driver to normal dashboard.
                     </p>
                   </div>
                 </div>
@@ -324,7 +324,7 @@ export const AdminDashboard = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {rides
-                  .filter((r) => r.status === 'in_progress')
+                  .filter((r) => r.status === 'in_progress' || (['scheduled', 'active', 'published'].includes(r.status) && bookings.some(b => b.rideId === r.id && b.status === 'confirmed')))
                   .map((ride) => {
                     const rideBookings = bookings.filter((b) => b.rideId === ride.id && b.status === 'confirmed');
                     return (
@@ -778,18 +778,18 @@ export const AdminDashboard = () => {
                             onClick={() => {
                               setConfirmModal({
                                 isOpen: true,
-                                title: `Permanently Delete Ride Record?`,
-                                message: `Permanently delete ride "${r.from} → ${r.to}" record from database?`,
-                                confirmText: 'Delete Permanently',
+                                title: `Remove ${r.status === 'completed' ? 'Completed' : 'Cancelled'} Ride: ${r.from} → ${r.to}?`,
+                                message: `Permanently delete this ${r.status} ride and all its records from the system database?`,
+                                confirmText: 'Yes, Remove Ride',
                                 confirmVariant: 'danger',
                                 onConfirm: () => adminDeleteRidePermanently(r.id)
                               });
                             }}
-                            className="px-2 py-1 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-lg transition inline-flex items-center gap-1 text-[11px]"
-                            title="Delete Record"
+                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-lg transition inline-flex items-center gap-1 text-[11px]"
+                            title="Delete Ride Record"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            Delete
+                            Remove Ride
                           </button>
                         )}
                       </div>

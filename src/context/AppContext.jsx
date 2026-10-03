@@ -136,12 +136,13 @@ export const AppProvider = ({ children }) => {
     try {
       const real = getRealBookings();
       if (real && real.length > 0) {
-        return real;
+        return real.filter(b => b.rideId !== 'ride-105' && b.id !== 'bkg-203');
       }
       const saved = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
-      return saved ? JSON.parse(saved) : INITIAL_BOOKINGS;
+      const raw = saved ? JSON.parse(saved) : INITIAL_BOOKINGS;
+      return (raw || []).filter(b => b.rideId !== 'ride-105' && b.id !== 'bkg-203');
     } catch {
-      return INITIAL_BOOKINGS;
+      return INITIAL_BOOKINGS.filter(b => b.rideId !== 'ride-105' && b.id !== 'bkg-203');
     }
   });
 
@@ -1020,13 +1021,25 @@ export const AppProvider = ({ children }) => {
       return { success: false, error: auth.error };
     }
 
+    const targetRide = rides.find(r => r.id === rideId);
     setRides(prev => prev.filter(r => r.id !== rideId));
+
+    // Also remove any bookings associated with this deleted ride
+    const associatedBookings = bookings.filter(b => b.rideId === rideId);
+    setBookings(prev => prev.filter(b => b.rideId !== rideId));
+
     if (isFirebaseConfigured()) {
       await firebaseDeleteRide(rideId);
+      for (const b of associatedBookings) {
+        await firebaseDeleteBooking(b.id);
+      }
     }
     deleteRealRide(rideId);
+    for (const b of associatedBookings) {
+      deleteRealBooking(b.id);
+    }
 
-    triggerToast('Ride Deleted', 'Ride permanently removed from database.', 'info');
+    triggerToast('Ride Deleted', `Ride ${targetRide?.from || ''} → ${targetRide?.to || ''} permanently removed from database.`, 'info');
     return { success: true };
   };
 
@@ -1827,6 +1840,7 @@ export const AppProvider = ({ children }) => {
         adminCancelBooking,
         adminCancelRide,
         adminDeleteRidePermanently,
+        adminDeleteRide: adminDeleteRidePermanently,
         createRide,
         requestBooking,
         acceptBooking,

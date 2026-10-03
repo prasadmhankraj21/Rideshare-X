@@ -118,11 +118,28 @@ export const PassengerDashboard = () => {
   // User's own bookings
   const myBookings = bookings.filter((b) => b.passengerId === currentUser?.id);
   const activeConfirmedBooking = myBookings.find((b) => b.status === 'confirmed');
+  const lastCompletedBooking = myBookings.filter((b) => b.status === 'completed').slice(-1)[0];
+
   const activeRideForPassenger =
-    (selectedRideId && rides.find((r) => r.id === selectedRideId)) ||
     (activeConfirmedBooking && rides.find((r) => r.id === activeConfirmedBooking.rideId)) ||
+    (selectedRideId && rides.find((r) => r.id === selectedRideId && r.status === 'in_progress')) ||
     rides.find((r) => r.status === 'in_progress') ||
-    rides[0];
+    (activeConfirmedBooking
+      ? {
+          id: activeConfirmedBooking.rideId || 'ride-active',
+          from: activeConfirmedBooking.from || 'Latur',
+          to: activeConfirmedBooking.to || 'Pune',
+          driverName: activeConfirmedBooking.driverName || 'Verified Driver',
+          driverPhone: activeConfirmedBooking.driverPhone || '9876543210',
+          status: 'in_progress',
+          departureTime: 'Now',
+          estimatedArrivalTime: '3h 30m',
+          sharedCostPerSeat: Math.round(activeConfirmedBooking.totalSharedContribution / (activeConfirmedBooking.seatsRequested || 1)) || 300,
+          fromCoordinates: [18.4088, 76.5604],
+          toCoordinates: [18.5204, 73.8567],
+          vehicleDetails: 'Maruti Grand Vitara (White) • MH-12-SG-1983'
+        }
+      : rides[0]);
 
   // Auto-open Coordination & Boarding PIN modal when driver confirms booking (before boarding)
   const autoOpenedBookingIdRef = React.useRef(null);
@@ -148,6 +165,9 @@ export const PassengerDashboard = () => {
         setSelectedRideId(activeConfirmedBooking.rideId);
         setCoordinationModalOpen(false);
         setActivePassengerTab('active_ride');
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 50);
         triggerToast(
           'Boarding Verified! ✅',
           'You are verified and onboard! Live highway route navigation is active.',
@@ -172,13 +192,16 @@ export const PassengerDashboard = () => {
       setSelectedRideId(activeRideForPassenger.id);
       setActivePassengerTab('active_ride');
       setCoordinationModalOpen(false);
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 50);
     }
   }, [activeRideForPassenger?.status, activeRideForPassenger?.id]);
 
   // Auto-switch passenger back to clean normal dashboard ('browse') when ride is completed
   const prevActiveBookingId = React.useRef(activeConfirmedBooking?.id);
   React.useEffect(() => {
-    if (prevActiveBookingId.current) {
+    if (prevActiveBookingId.current && !activeConfirmedBooking) {
       const finishedBkg = myBookings.find(
         (b) => b.id === prevActiveBookingId.current && (b.status === 'completed' || b.status === 'cancelled')
       );
@@ -194,23 +217,8 @@ export const PassengerDashboard = () => {
         }
       }
     }
-
-    // Also check if current ride completed by driver or admin
-    const currentRide = rides.find((r) => r.id === selectedRideId || r.id === activeConfirmedBooking?.rideId);
-    if (currentRide && currentRide.status === 'completed') {
-      setCoordinationModalOpen(false);
-      if (activePassengerTab === 'active_ride') {
-        setActivePassengerTab('browse');
-        triggerToast(
-          'Ride Completed! 🎉',
-          `Ride ${currentRide.from} → ${currentRide.to} completed. Returned to normal dashboard.`,
-          'success'
-        );
-      }
-    }
-
     prevActiveBookingId.current = activeConfirmedBooking?.id;
-  }, [activeConfirmedBooking, myBookings, activePassengerTab, rides, selectedRideId]);
+  }, [activeConfirmedBooking, myBookings, activePassengerTab]);
 
   // If currently opened coordination booking is completed or cancelled, auto-close modal
   React.useEffect(() => {
@@ -285,7 +293,7 @@ export const PassengerDashboard = () => {
       </div>
 
       {/* Confirmed Booking Coordination Banner */}
-      {activeConfirmedBooking && (
+      {activeConfirmedBooking && activePassengerTab !== 'active_ride' && (
         <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-teal-700 rounded-3xl p-5 sm:p-6 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 animate-in fade-in duration-300">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0 shadow-inner">
@@ -324,6 +332,9 @@ export const PassengerDashboard = () => {
                 onClick={() => {
                   setSelectedRideId(activeConfirmedBooking.rideId);
                   setActivePassengerTab('active_ride');
+                  setTimeout(() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }, 50);
                 }}
                 className="w-full md:w-auto px-5 py-3 bg-white hover:bg-emerald-50 active:scale-95 text-emerald-800 font-black text-xs rounded-2xl shadow-lg flex items-center justify-center gap-2 transition"
               >
@@ -351,7 +362,7 @@ export const PassengerDashboard = () => {
       )}
 
       {/* Live Highway Journey In-Progress Banner */}
-      {activeRideForPassenger?.status === 'in_progress' && (
+      {activeRideForPassenger?.status === 'in_progress' && activePassengerTab !== 'active_ride' && (
         <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-teal-600 rounded-3xl p-5 sm:p-6 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 animate-in fade-in duration-300">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0 shadow-inner animate-pulse">
@@ -448,92 +459,123 @@ export const PassengerDashboard = () => {
         </button>
       </div>
 
-      {/* SEARCH BAR WIDGET (Always visible or in Search tab) */}
-      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-md">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Search className="w-4 h-4 text-teal-600" />
-            <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Search Intercity Shared Rides
-            </span>
+      {/* RECENT COMPLETED RIDE RECEIPT BANNER (Normal Dashboard Restored) */}
+      {lastCompletedBooking && !activeConfirmedBooking && activePassengerTab === 'browse' && (
+        <div className="bg-emerald-50 border-2 border-emerald-300 rounded-3xl p-5 sm:p-6 text-slate-900 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold shrink-0">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">Trip Completed Successfully</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">Normal Dashboard</span>
+              </div>
+              <h4 className="text-base font-black text-slate-900 mt-0.5">
+                {lastCompletedBooking.from} → {lastCompletedBooking.to}
+              </h4>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {lastCompletedBooking.seatsRequested} seat(s) reserved • Total Contribution: ₹{lastCompletedBooking.totalSharedContribution} • Hope you had a safe ride!
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActivePassengerTab('history')}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition shrink-0"
+          >
+            View Trip History
+          </button>
+        </div>
+      )}
+
+      {/* SEARCH BAR WIDGET (Only visible in Browse / Search tabs) */}
+      {(activePassengerTab === 'browse' || activePassengerTab === 'search') && (
+        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-md">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-teal-600" />
+              <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Search Intercity Shared Rides
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="verifiedOnly"
+                checked={onlyVerifiedDrivers}
+                onChange={(e) => setOnlyVerifiedDrivers(e.target.checked)}
+                className="w-3.5 h-3.5 text-teal-600 rounded border-slate-300"
+              />
+              <label htmlFor="verifiedOnly" className="text-xs text-slate-600 cursor-pointer">
+                Verified Drivers Only
+              </label>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="verifiedOnly"
-              checked={onlyVerifiedDrivers}
-              onChange={(e) => setOnlyVerifiedDrivers(e.target.checked)}
-              className="w-3.5 h-3.5 text-teal-600 rounded border-slate-300"
-            />
-            <label htmlFor="verifiedOnly" className="text-xs text-slate-600 cursor-pointer">
-              Verified Drivers Only
-            </label>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">From</label>
+              <div className="relative">
+                <MapPin className="w-4 h-4 text-emerald-600 absolute left-3 top-3 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Starting city (e.g. Latur)"
+                  value={searchFrom}
+                  onChange={(e) => setSearchFrom(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">To</label>
+              <div className="relative">
+                <MapPin className="w-4 h-4 text-rose-500 absolute left-3 top-3 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Destination (e.g. Pune)"
+                  value={searchTo}
+                  onChange={(e) => setSearchTo(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">Date</label>
+              <div className="relative">
+                <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                <input
+                  type="date"
+                  value={searchDate}
+                  onChange={(e) => setSearchDate(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-end gap-2">
+              <button
+                onClick={() => {
+                  setSearchFrom('');
+                  setSearchTo('');
+                  setSearchDate('');
+                }}
+                className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-xl text-xs transition"
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => setActivePassengerTab('browse')}
+                className="flex-1 py-2.5 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs shadow-md transition"
+              >
+                Filter Rides ({filteredRides.length})
+              </button>
+            </div>
           </div>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-500 mb-1">From</label>
-            <div className="relative">
-              <MapPin className="w-4 h-4 text-emerald-600 absolute left-3 top-3 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Starting city (e.g. Latur)"
-                value={searchFrom}
-                onChange={(e) => setSearchFrom(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-500 mb-1">To</label>
-            <div className="relative">
-              <MapPin className="w-4 h-4 text-rose-500 absolute left-3 top-3 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Destination (e.g. Pune)"
-                value={searchTo}
-                onChange={(e) => setSearchTo(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Date</label>
-            <div className="relative">
-              <Calendar className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
-              <input
-                type="date"
-                value={searchDate}
-                onChange={(e) => setSearchDate(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-end gap-2">
-            <button
-              onClick={() => {
-                setSearchFrom('');
-                setSearchTo('');
-                setSearchDate('');
-              }}
-              className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-xl text-xs transition"
-            >
-              Clear
-            </button>
-            <button
-              onClick={() => setActivePassengerTab('browse')}
-              className="flex-1 py-2.5 px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs shadow-md transition"
-            >
-              Filter Rides ({filteredRides.length})
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* TAB 1: BROWSE / SEARCH AVAILABLE RIDES */}
       {(activePassengerTab === 'browse' || activePassengerTab === 'search') && (
@@ -805,17 +847,33 @@ export const PassengerDashboard = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                <tr className="hover:bg-slate-50/50">
-                  <td className="py-3 px-4 font-bold text-slate-900">Pune → Solapur</td>
-                  <td className="py-3 px-4 text-slate-600">28 Sep 2026</td>
-                  <td className="py-3 px-4 font-semibold text-slate-800">2 seats</td>
-                  <td className="py-3 px-4 font-bold text-emerald-700">₹620</td>
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
-                      Completed ✓
-                    </span>
-                  </td>
-                </tr>
+                {myBookings.filter((b) => b.status === 'completed').length > 0 ? (
+                  myBookings
+                    .filter((b) => b.status === 'completed')
+                    .map((bkg) => (
+                      <tr key={bkg.id} className="hover:bg-slate-50/50">
+                        <td className="py-3 px-4 font-bold text-slate-900">
+                          {bkg.from} → {bkg.to}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">
+                          {bkg.requestedAt ? new Date(bkg.requestedAt).toLocaleDateString() : 'Today'}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-slate-800">{bkg.seatsRequested} seat(s)</td>
+                        <td className="py-3 px-4 font-bold text-emerald-700">₹{bkg.totalSharedContribution}</td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
+                            Completed ✓
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-400">
+                      No completed trips yet.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

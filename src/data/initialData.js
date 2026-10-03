@@ -350,40 +350,6 @@ export const INITIAL_RIDES = [
     routeOptimized: false,
     routeDeviationDetected: false,
     activeLocation: null
-  },
-  {
-    id: 'ride-105',
-    driverId: 'drv-1',
-    driverName: 'Rajesh Sharma',
-    driverAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    driverRating: 4.9,
-    driverVerified: true,
-    from: 'Pune',
-    fromCoordinates: [18.5204, 73.8567],
-    to: 'Solapur',
-    toCoordinates: [17.6599, 75.9064],
-    date: '2026-09-28',
-    departureTime: '06:00 AM',
-    estimatedArrivalTime: '11:00 AM',
-    estimatedDuration: '5h 00m',
-    vehicleType: '5-Seater',
-    vehicleDetails: 'Honda City ZX • MH-12-PQ-9876',
-    totalSeats: 5,
-    availableSeats: 0,
-    totalPassengerSeatsAllowed: 2,
-    sharedCostPerSeat: 310,
-    costBreakdown: { estimatedFuel: 190, highwayTolls: 120, note: 'NH-65 toll + fuel.' },
-    cancellationDeposit: 250,
-    depositStatus: 'refunded', // Completed ride -> deposit returned to driver
-    pickupDropPoints: [
-      { type: 'pickup', point: 'Pune Station', time: '06:00 AM' },
-      { type: 'dropoff', point: 'Solapur Old Bus Stand', time: '11:00 AM' }
-    ],
-    description: 'Business consultation visit. Trip completed smoothly.',
-    status: 'completed',
-    routeOptimized: true,
-    routeDeviationDetected: false,
-    activeLocation: null
   }
 ];
 
@@ -421,23 +387,6 @@ export const INITIAL_BOOKINGS = [
     status: 'confirmed', // Currently travelling in the active ride!
     requestedAt: '2026-10-01T14:30:00Z',
     notes: 'Travelling with my colleague. No large luggage.'
-  },
-  {
-    id: 'bkg-203',
-    rideId: 'ride-105',
-    passengerId: 'psg-3',
-    passengerName: 'Sneha Nair',
-    passengerPhone: '+91 97441 55667',
-    passengerAvatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
-    seatsRequested: 2,
-    from: 'Pune',
-    to: 'Solapur',
-    pickupPoint: 'Pune Station',
-    dropoffPoint: 'Solapur Old Bus Stand',
-    totalSharedContribution: 620,
-    status: 'completed',
-    requestedAt: '2026-09-27T08:00:00Z',
-    notes: 'Pleasant and punctual driver. Very safe driving.'
   }
 ];
 
