@@ -25,6 +25,7 @@ import {
   supabaseSignUpPassenger,
   supabaseSignInUser,
   supabaseSaveRide,
+  supabaseSearchRides,
   supabaseFetchAllRides,
   getRealUsers,
   getRealRides
@@ -199,9 +200,16 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTab);
   }, [activeTab]);
 
-  // Refresh real rides from Supabase & persistent storage
-  const refreshRides = async () => {
+  // Refresh real rides from Supabase & persistent storage (with optional search criteria)
+  const refreshRides = async (filters = null) => {
     try {
+      if (filters && (filters.from || filters.to || filters.date || filters.seats)) {
+        const searchRes = await supabaseSearchRides(filters);
+        if (searchRes && searchRes.success && searchRes.rides) {
+          setRides(searchRes.rides);
+          return searchRes.rides;
+        }
+      }
       const remoteRides = await supabaseFetchAllRides();
       if (remoteRides) {
         setRides(remoteRides);
@@ -220,6 +228,17 @@ export const AppProvider = ({ children }) => {
   // Sync real published rides on mount
   useEffect(() => {
     refreshRides();
+  }, []);
+
+  // Cross-tab synchronization so Driver publish in Tab A is immediately visible to Passenger in Tab B
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === STORAGE_KEYS.RIDES || e.key === 'ridesharex_real_rides_v1') {
+        refreshRides();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   // Derived current user object - strictly isolated, NO demo fallback for logged in users!
@@ -628,7 +647,12 @@ export const AppProvider = ({ children }) => {
     };
 
     // Await database persistence
-    await supabaseSaveRide(newRide);
+    const saveResult = await supabaseSaveRide(newRide);
+    if (!saveResult.success) {
+      console.error('[Supabase Save Error]', saveResult.error);
+      triggerToast('Database Error', saveResult.error || 'Failed to save ride to database.', 'error');
+      return null;
+    }
 
     setRides(prev => [newRide, ...prev.filter(r => r.id !== newRide.id)]);
 
@@ -1139,7 +1163,8 @@ export const AppProvider = ({ children }) => {
         isSupabaseConfigured,
         globalSearch,
         setGlobalSearch,
-        refreshRides
+        refreshRides,
+        searchRides: supabaseSearchRides
       }}
     >
       {children}

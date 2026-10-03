@@ -594,7 +594,7 @@ export const supabaseSaveRide = async (ride) => {
   // If Supabase is configured, insert/upsert to Supabase 'rides' table
   if (isSupabaseConfigured() && supabase) {
     try {
-      const { data, error } = await supabase.from('rides').upsert({
+      const dbRow = {
         id: ridePayload.id,
         driver_id: ridePayload.driverId,
         driver_name: ridePayload.driverName,
@@ -621,26 +621,132 @@ export const supabaseSaveRide = async (ride) => {
         pickup_drop_points: ridePayload.pickupDropPoints || [],
         description: ridePayload.description || '',
         status: ridePayload.status || 'published'
-      });
+      };
+
+      console.log('[Supabase DB Insert] Target table: "rides", Driver ID:', dbRow.driver_id, 'Status:', dbRow.status);
+
+      const { data, error } = await supabase.from('rides').upsert(dbRow).select();
 
       if (error) {
-        console.warn('Supabase ride save error:', error.message);
-        ridePayload.success = false;
-        ridePayload.error = error.message;
-        return ridePayload;
+        console.error('[Supabase DB Error] Insert/Upsert to "rides" failed:', error.message, error);
+        return { success: false, error: error.message, code: error.code, ride: ridePayload };
       }
-      ridePayload.success = true;
-      return ridePayload;
+
+      console.log('[Supabase DB Success] Saved ride row:', data);
+      return { ...ridePayload, success: true, ride: ridePayload, data: data ? data[0] : dbRow };
     } catch (err) {
-      console.warn('Supabase ride save exception:', err);
-      ridePayload.success = false;
-      ridePayload.error = err.message;
-      return ridePayload;
+      console.error('[Supabase DB Exception] Save ride exception:', err);
+      return { ...ridePayload, success: false, error: err.message, ride: ridePayload };
     }
   }
 
-  ridePayload.success = true;
-  return ridePayload;
+  return { ...ridePayload, success: true, ride: ridePayload, isLocalFallback: true };
+};
+
+/**
+ * Searches real published rides directly from Supabase 'rides' table using SQL criteria,
+ * with fallback to persistent real ride store.
+ */
+export const supabaseSearchRides = async ({ from = '', to = '', date = '', seats = 1, onlyVerified = false } = {}) => {
+  const cleanFrom = from?.trim() || '';
+  const cleanTo = to?.trim() || '';
+  const cleanDate = date?.trim() || '';
+
+  if (isSupabaseConfigured() && supabase) {
+    try {
+      console.log('[Supabase Passenger Search Query] Executing query on "rides" table:', {
+        table: 'rides',
+        status: ['published', 'active', 'scheduled', 'in_progress'],
+        from_location: cleanFrom ? `%${cleanFrom}%` : 'ALL',
+        to_location: cleanTo ? `%${cleanTo}%` : 'ALL',
+        date: cleanDate || 'ALL'
+      });
+
+      let query = supabase
+        .from('rides')
+        .select('*')
+        .in('status', ['published', 'active', 'scheduled', 'in_progress']);
+
+      if (cleanFrom) {
+        query = query.ilike('from_location', `%${cleanFrom}%`);
+      }
+      if (cleanTo) {
+        query = query.ilike('to_location', `%${cleanTo}%`);
+      }
+      if (cleanDate && cleanDate !== 'Today') {
+        query = query.eq('date', cleanDate);
+      }
+      if (seats && Number(seats) > 0) {
+        query = query.gte('available_seats', Number(seats));
+      }
+      if (onlyVerified) {
+        query = query.eq('driver_verified', true);
+      }
+
+      query = query.order('created_at', { ascending: false });
+
+      const { data, error } = await query;
+
+      console.log('[Supabase Raw Database Response]', {
+        count: data?.length || 0,
+        error: error ? error.message : null,
+        rows: data
+      });
+
+      if (!error && Array.isArray(data)) {
+        const mapped = data.map((r) => ({
+          id: r.id,
+          driverId: r.driver_id,
+          driverName: r.driver_name,
+          driverAvatar: r.driver_avatar,
+          driverRating: Number(r.driver_rating) || 5.0,
+          driverVerified: Boolean(r.driver_verified),
+          from: r.from_location,
+          to: r.to_location,
+          fromCoordinates: r.from_coordinates || [18.4088, 76.5604],
+          toCoordinates: r.to_coordinates || [18.5204, 73.8567],
+          date: r.date,
+          departureTime: r.departure_time,
+          estimatedArrivalTime: r.estimated_arrival_time,
+          estimatedDuration: r.estimated_duration,
+          vehicleType: r.vehicle_type,
+          vehicleDetails: r.vehicle_details,
+          totalSeats: parseInt(r.total_seats || 5),
+          availableSeats: parseInt(r.available_seats || 2),
+          totalPassengerSeatsAllowed: parseInt(r.total_passenger_seats_allowed || 2),
+          sharedCostPerSeat: Number(r.shared_cost_per_seat),
+          costBreakdown: r.cost_breakdown,
+          cancellationDeposit: Number(r.cancellation_deposit),
+          depositStatus: r.deposit_status,
+          pickupDropPoints: r.pickup_drop_points || [],
+          description: r.description,
+          status: r.status || 'published',
+          routeOptimized: Boolean(r.route_optimized),
+          routeDeviationDetected: Boolean(r.route_deviation_detected)
+        }));
+
+        return { success: true, rides: mapped, raw: data, source: 'supabase' };
+      }
+    } catch (err) {
+      console.warn('[Supabase Search Exception]', err);
+    }
+  }
+
+  // Persistent storage search fallback
+  const localRides = getRealRides().filter((r) =>
+    ['published', 'active', 'scheduled', 'in_progress'].includes(r.status)
+  );
+
+  const matched = localRides.filter((r) => {
+    if (cleanFrom && !r.from?.toLowerCase().includes(cleanFrom.toLowerCase())) return false;
+    if (cleanTo && !r.to?.toLowerCase().includes(cleanTo.toLowerCase())) return false;
+    if (cleanDate && r.date?.trim() !== cleanDate && r.date !== 'Today') return false;
+    if (seats && Number(r.availableSeats) < Number(seats)) return false;
+    if (onlyVerified && !r.driverVerified) return false;
+    return true;
+  });
+
+  return { success: true, rides: matched, raw: matched, source: 'local_storage' };
 };
 
 /**

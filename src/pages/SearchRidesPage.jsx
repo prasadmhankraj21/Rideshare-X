@@ -33,12 +33,18 @@ export const SearchRidesPage = () => {
     refreshRides
   } = useApp();
 
-  // Fetch latest real published rides on mount
+  // Fetch latest real published rides on mount and whenever search parameters change
   React.useEffect(() => {
     if (refreshRides) {
-      refreshRides();
+      refreshRides({
+        from: searchFrom,
+        to: searchTo,
+        date: searchDate,
+        seats: searchSeats,
+        onlyVerified
+      });
     }
-  }, []);
+  }, [searchFrom, searchTo, searchDate, searchSeats, onlyVerified]);
 
   // Search filter states (synced with globalSearch if present)
   const [searchFrom, setSearchFrom] = useState(globalSearch?.from || '');

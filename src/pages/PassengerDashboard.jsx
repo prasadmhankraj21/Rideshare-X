@@ -39,12 +39,17 @@ export const PassengerDashboard = () => {
     refreshRides
   } = useApp();
 
-  // Fetch latest real published rides on mount
+  // Fetch latest real published rides on mount and whenever search parameters change
   React.useEffect(() => {
     if (refreshRides) {
-      refreshRides();
+      refreshRides({
+        from: searchFrom,
+        to: searchTo,
+        date: searchDate,
+        onlyVerified: onlyVerifiedDrivers
+      });
     }
-  }, []);
+  }, [searchFrom, searchTo, searchDate, onlyVerifiedDrivers]);
 
   const [activePassengerTab, setActivePassengerTab] = useState('browse'); // 'browse' | 'search' | 'my_bookings' | 'active_ride' | 'history'
   const [searchFrom, setSearchFrom] = useState('');
