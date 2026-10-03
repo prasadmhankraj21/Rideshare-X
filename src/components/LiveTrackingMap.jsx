@@ -420,7 +420,7 @@ export const LiveTrackingMap = ({ ride, isDriverView = false }) => {
               </button>
 
               {/* Start Ride Button (for driver if scheduled) */}
-              {isScheduled && (
+              {isScheduled && isDriverView && (
                 <button
                   onClick={() => startRide(ride.id)}
                   className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-2 transition"
@@ -430,8 +430,16 @@ export const LiveTrackingMap = ({ ride, isDriverView = false }) => {
                 </button>
               )}
 
+              {/* Passenger Scheduled Badge */}
+              {isScheduled && !isDriverView && (
+                <div className="px-4 py-2 bg-blue-50 text-blue-800 text-xs font-bold rounded-xl border border-blue-200 flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-blue-600" />
+                  Departure: {ride.departureTime || 'Scheduled'}
+                </div>
+              )}
+
               {/* End Ride Button (for driver if active) */}
-              {isRideActive && (
+              {isRideActive && isDriverView && (
                 <button
                   onClick={() => endRide(ride.id)}
                   className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-2 transition"
@@ -439,6 +447,14 @@ export const LiveTrackingMap = ({ ride, isDriverView = false }) => {
                   <Flag className="w-4 h-4 text-emerald-400" />
                   End Ride (Destination Reached)
                 </button>
+              )}
+
+              {/* Passenger In-Transit Badge */}
+              {isRideActive && !isDriverView && (
+                <div className="px-4 py-2 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping" />
+                  In Transit • Live GPS Active
+                </div>
               )}
 
               {isCompleted && (

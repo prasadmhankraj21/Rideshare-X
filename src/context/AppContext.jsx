@@ -1063,12 +1063,48 @@ export const AppProvider = ({ children }) => {
     });
   };
 
+  // Verify passenger boarding PIN
+  const verifyBoardingPin = async (bookingId, inputPin) => {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking) {
+      return { success: false, error: 'Booking not found.' };
+    }
+
+    const cleanInput = String(inputPin || '').trim();
+    const expectedPin = String(booking.boardingPin || '').trim();
+
+    if (cleanInput !== expectedPin) {
+      triggerToast('Invalid PIN', 'PIN does not match! Please check the 4-digit code on the passenger\'s screen.', 'error');
+      return { success: false, error: 'Invalid PIN. Please check passenger\'s screen.' };
+    }
+
+    const updaterName = currentUser?.name || 'Driver';
+    const newMsg = {
+      id: `msg-${Date.now()}-verify`,
+      senderId: 'system',
+      senderName: 'Boarding System',
+      senderRole: 'system',
+      text: `✅ Boarding Verified! PIN ${cleanInput} verified by ${updaterName}. ${booking.passengerName} has safely boarded the vehicle.`,
+      timestamp: new Date().toISOString()
+    };
+
+    const updated = await updateBookingCoordination(bookingId, {
+      boardingVerified: true,
+      newMessage: newMsg,
+      toastTitle: 'Boarding Verified! ✅',
+      toastMessage: `${booking.passengerName} verified. You can now start the ride.`
+    });
+
+    return { success: true, booking: updated };
+  };
+
   // Driver: Start Ride
-  const startRide = (rideId) => {
+  const startRide = async (rideId) => {
+    let updatedRide = null;
     setRides(prev =>
       prev.map(r => {
         if (r.id === rideId) {
-          return {
+          updatedRide = {
             ...r,
             status: 'in_progress',
             activeLocation: {
@@ -1076,21 +1112,31 @@ export const AppProvider = ({ children }) => {
               longitude: r.fromCoordinates ? r.fromCoordinates[1] : 73.8567,
               heading: 310,
               speedKmH: 65,
-              currentMilestone: `Departed from ${r.from}. Cruising on highway.`,
+              currentMilestone: `Departed from ${r.from}. Cruising on highway towards ${r.to}.`,
               distanceCoveredKm: 5,
               totalDistanceKm: 180,
               etaMinutes: 160
-            }
+            },
+            updatedAt: new Date().toISOString()
           };
+          return updatedRide;
         }
         return r;
       })
     );
 
+    if (updatedRide) {
+      if (isFirebaseConfigured()) {
+        await firebaseSaveRide(updatedRide);
+      } else {
+        saveRealRide(updatedRide);
+      }
+    }
+
     setSelectedRideId(rideId);
 
     // Notify all confirmed passengers of this ride
-    const confirmedBookings = bookings.filter(b => b.rideId === rideId && b.status === 'confirmed');
+    const confirmedBookings = bookings.filter(b => b.rideId === rideId && (b.status === 'confirmed' || b.status === 'in_progress'));
     const newNotifs = confirmedBookings.map(b => ({
       id: `notif-${Date.now()}-${b.id}`,
       targetUserId: b.passengerId,
@@ -1104,35 +1150,63 @@ export const AppProvider = ({ children }) => {
 
     setNotifications(prev => [...newNotifs, ...prev]);
     triggerToast('Ride Started', 'GPS Live Tracking is now ON! Co-travellers can track route.', 'success');
+    return updatedRide;
   };
 
   // Driver: End Ride
-  const endRide = (rideId) => {
+  const endRide = async (rideId) => {
     const targetRide = rides.find(r => r.id === rideId);
+    let updatedRide = null;
 
     setRides(prev =>
       prev.map(r => {
         if (r.id === rideId) {
-          return {
+          updatedRide = {
             ...r,
             status: 'completed',
             depositStatus: 'refunded',
-            activeLocation: null
+            activeLocation: null,
+            updatedAt: new Date().toISOString()
           };
+          return updatedRide;
         }
         return r;
       })
     );
 
+    if (updatedRide) {
+      if (isFirebaseConfigured()) {
+        await firebaseSaveRide(updatedRide);
+      } else {
+        saveRealRide(updatedRide);
+      }
+    }
+
     // Update bookings for this ride to completed
+    const updatedBookings = [];
     setBookings(prev =>
-      prev.map(b => (b.rideId === rideId && b.status === 'confirmed' ? { ...b, status: 'completed' } : b))
+      prev.map(b => {
+        if (b.rideId === rideId && (b.status === 'confirmed' || b.status === 'in_progress')) {
+          const compBkg = { ...b, status: 'completed', updatedAt: new Date().toISOString() };
+          updatedBookings.push(compBkg);
+          return compBkg;
+        }
+        return b;
+      })
     );
+
+    for (const b of updatedBookings) {
+      if (isFirebaseConfigured()) {
+        await firebaseSaveBooking(b);
+      } else {
+        saveRealBooking(b);
+      }
+    }
 
     // Notify driver about cancellation deposit refund
     const notifDriver = {
       id: `notif-${Date.now()}-drv`,
-      targetUserId: targetRide?.driverId || currentUser.id,
+      targetUserId: targetRide?.driverId || currentUser?.id,
       role: 'driver',
       title: 'Ride Completed & Deposit Refunded! 💰',
       message: `Destination reached safely. Your refundable cancellation deposit of ₹${targetRide?.cancellationDeposit || 250} has been released back to your account.`,
@@ -1142,7 +1216,7 @@ export const AppProvider = ({ children }) => {
     };
 
     // Notify passengers
-    const confirmedBookings = bookings.filter(b => b.rideId === rideId && b.status === 'confirmed');
+    const confirmedBookings = bookings.filter(b => b.rideId === rideId && (b.status === 'confirmed' || b.status === 'completed'));
     const psgNotifs = confirmedBookings.map(b => ({
       id: `notif-${Date.now()}-${b.id}`,
       targetUserId: b.passengerId,
@@ -1451,6 +1525,7 @@ export const AppProvider = ({ children }) => {
         updateBookingCoordination,
         sendBookingMessage,
         updateExactPickupSpot,
+        verifyBoardingPin,
         searchRides: supabaseSearchRides
       }}
     >

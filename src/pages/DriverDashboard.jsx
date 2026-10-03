@@ -1234,9 +1234,12 @@ export const DriverDashboard = () => {
         <RideCoordinationModal
           isOpen={coordinationModalOpen}
           onClose={() => setCoordinationModalOpen(false)}
-          booking={selectedCoordinationBooking}
+          booking={bookings.find(b => b.id === selectedCoordinationBooking?.id) || selectedCoordinationBooking}
           ride={rides.find((r) => r.id === selectedCoordinationBooking?.rideId)}
           isDriverView={true}
+          onSwitchToLiveMap={() => {
+            setActiveDriverTab('active_ride');
+          }}
         />
       )}
     </div>

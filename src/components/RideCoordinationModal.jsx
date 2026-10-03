@@ -55,17 +55,23 @@ export const RideCoordinationModal = ({
   onClose,
   booking,
   ride,
-  isDriverView = false
+  isDriverView = false,
+  onSwitchToLiveMap
 }) => {
   const {
     currentUser,
     currentRole,
     sendBookingMessage,
     updateExactPickupSpot,
+    verifyBoardingPin,
+    startRide,
     triggerToast
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState('map'); // 'map' | 'chat'
+  // Default to 'verify' tab if boarding not yet verified, else 'map'
+  const [activeTab, setActiveTab] = useState(booking?.boardingVerified ? 'map' : 'verify');
+  const [pinInput, setPinInput] = useState('');
+  const [verifyingPin, setVerifyingPin] = useState(false);
   const [customAddress, setCustomAddress] = useState('');
   const [selectedCoords, setSelectedCoords] = useState(null);
   const [chatInput, setChatInput] = useState('');
@@ -215,6 +221,36 @@ export const RideCoordinationModal = ({
     }
   };
 
+  const handleVerifyPin = async () => {
+    if (!pinInput || pinInput.length < 4) {
+      triggerToast('PIN Required', 'Please enter the 4-digit PIN provided by passenger.', 'warning');
+      return;
+    }
+
+    setVerifyingPin(true);
+    const res = await verifyBoardingPin(booking.id, pinInput);
+    setVerifyingPin(false);
+    if (res.success) {
+      setPinInput('');
+    }
+  };
+
+  const handleStartTrip = async () => {
+    if (!ride) return;
+    await startRide(ride.id);
+    onClose();
+    if (onSwitchToLiveMap) {
+      onSwitchToLiveMap();
+    }
+  };
+
+  const handleViewLiveRoute = () => {
+    onClose();
+    if (onSwitchToLiveMap) {
+      onSwitchToLiveMap();
+    }
+  };
+
   const handlePickLandmark = (landmark) => {
     setCustomAddress(landmark.name);
     setSelectedCoords(landmark.coords);
@@ -303,9 +339,14 @@ export const RideCoordinationModal = ({
                 <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider">
                   Confirmed & Connected
                 </span>
+                {booking.boardingVerified && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold">
+                    Boarded ✓
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                {isDriverView ? 'Co-Traveller Coordination Hub' : 'Driver Coordination & Pickup Hub'}
+                {isDriverView ? 'Co-Traveller Verification & Coordination Hub' : 'Driver Coordination & Pickup Hub'}
               </p>
             </div>
           </div>
@@ -367,7 +408,7 @@ export const RideCoordinationModal = ({
                   </>
                 ) : (
                   <>
-                    Vehicle: <strong className="text-slate-700">{ride?.vehicleDetails || 'Car • MH-12-REG'}</strong>
+                    Vehicle: <strong className="text-slate-700">{ride?.vehicleDetails || 'Maruti Grand Vitara (White) • MH-12-SG-1983'}</strong>
                   </>
                 )}
               </p>
@@ -396,11 +437,30 @@ export const RideCoordinationModal = ({
           </div>
         </div>
 
-        {/* Tab Controls: Interactive Map vs Live Chat */}
-        <div className="flex border-b border-slate-200 bg-white px-4 sm:px-6 shrink-0">
+        {/* Tab Controls: Verification vs Interactive Map vs Live Chat */}
+        <div className="flex border-b border-slate-200 bg-white px-4 sm:px-6 shrink-0 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('verify')}
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition shrink-0 ${
+              activeTab === 'verify'
+                ? 'border-emerald-600 text-emerald-700'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <KeyRound className="w-4 h-4" />
+            Boarding PIN & Verification
+            {booking.boardingVerified ? (
+              <span className="w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center">
+                ✓
+              </span>
+            ) : (
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+            )}
+          </button>
+
           <button
             onClick={() => setActiveTab('map')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition ${
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition shrink-0 ${
               activeTab === 'map'
                 ? 'border-emerald-600 text-emerald-700'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -412,14 +472,14 @@ export const RideCoordinationModal = ({
 
           <button
             onClick={() => setActiveTab('chat')}
-            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition relative ${
+            className={`py-3 px-4 text-xs font-bold border-b-2 flex items-center gap-2 transition shrink-0 relative ${
               activeTab === 'chat'
                 ? 'border-emerald-600 text-emerald-700'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
             }`}
           >
             <MessageSquare className="w-4 h-4" />
-            Live Chat / Quick Updates
+            Live Chat
             {booking.chatMessages && booking.chatMessages.length > 1 && (
               <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center justify-center">
                 {booking.chatMessages.length}
@@ -430,7 +490,208 @@ export const RideCoordinationModal = ({
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-          {/* TAB 1: INTERACTIVE MAP & PICKUP POINT SETTER */}
+          {/* TAB 1: BOARDING PIN & VERIFICATION */}
+          {activeTab === 'verify' && (
+            <div className="space-y-5">
+              {isDriverView ? (
+                /* DRIVER VIEW */
+                <div className="space-y-5">
+                  <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shrink-0">
+                        <KeyRound className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900">
+                          Verify Passenger Boarding PIN
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Ask <strong>{booking.passengerName}</strong> for the 4-digit PIN on their screen to confirm they are your verified co-traveller.
+                        </p>
+                      </div>
+                    </div>
+
+                    {!booking.boardingVerified ? (
+                      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                        <label className="text-xs font-bold text-slate-700 block">
+                          Enter 4-Digit Boarding PIN from Passenger:
+                        </label>
+
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                          <input
+                            type="text"
+                            maxLength={4}
+                            value={pinInput}
+                            onChange={(e) => setPinInput(e.target.value.replace(/[^0-9]/g, ''))}
+                            placeholder="e.g. 8429"
+                            className="w-full sm:w-44 text-center text-2xl font-mono font-black tracking-widest px-4 py-3 bg-slate-50 border-2 border-slate-300 focus:border-emerald-600 rounded-2xl outline-none"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={handleVerifyPin}
+                            disabled={pinInput.length < 4 || verifyingPin}
+                            className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-2xl shadow-md transition flex items-center justify-center gap-2"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            {verifyingPin ? 'Verifying...' : 'Verify Passenger PIN'}
+                          </button>
+                        </div>
+
+                        {/* Testing autofill helper */}
+                        {booking.boardingPin && (
+                          <div className="pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setPinInput(booking.boardingPin)}
+                              className="text-[11px] font-bold text-emerald-700 hover:underline flex items-center gap-1"
+                            >
+                              Auto-fill Passenger PIN for quick test ({booking.boardingPin})
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* BOARDING VERIFIED */
+                      <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-5 space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0">
+                            <Check className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-black text-emerald-950">
+                              Passenger Verified & Safely Boarded! ✅
+                            </h4>
+                            <p className="text-xs text-emerald-800">
+                              {booking.passengerName} has boarded your vehicle. Both parties are matched.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                          <div className="text-xs text-emerald-900 font-medium">
+                            Ready to begin journey to <strong>{booking.to}</strong>. Real-time GPS navigation will turn ON.
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleStartTrip}
+                            className="w-full sm:w-auto px-7 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-2xl shadow-lg shadow-emerald-700/30 flex items-center justify-center gap-2 transition"
+                          >
+                            <Navigation className="w-4 h-4" />
+                            🚀 Start Ride / Begin Highway Journey
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* PASSENGER VIEW */
+                <div className="space-y-5">
+                  <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-teal-700 rounded-3xl p-6 text-white shadow-xl space-y-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-[10px] uppercase font-black tracking-widest text-emerald-200">
+                        Passenger Boarding Pass
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white text-xs font-bold">
+                        {booking.from} → {booking.to}
+                      </span>
+                    </div>
+
+                    <div className="text-center py-2 space-y-2">
+                      <span className="text-xs text-emerald-100 font-semibold block">
+                        Tell or show this 4-Digit PIN to Driver {otherPartyName}:
+                      </span>
+                      <div className="inline-flex items-center gap-3 bg-slate-950/40 px-6 py-3 rounded-2xl border-2 border-white/30 backdrop-blur-md">
+                        <KeyRound className="w-6 h-6 text-amber-300" />
+                        <span className="text-3xl sm:text-4xl font-mono font-black tracking-widest text-amber-300">
+                          {booking.boardingPin || '8429'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-200 max-w-md mx-auto">
+                        Driver will enter this PIN to verify that you are the confirmed passenger before starting the ride.
+                      </p>
+                    </div>
+
+                    <div className="bg-white/10 rounded-2xl p-4 border border-white/20 space-y-2 text-xs">
+                      <div className="font-bold text-white flex items-center gap-1.5">
+                        <Car className="w-4 h-4 text-emerald-300" />
+                        Verify Your Car & Driver:
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-emerald-100">
+                        <div>Driver: <strong className="text-white">{otherPartyName}</strong></div>
+                        <div>Phone: <strong className="text-white">{otherPartyPhone}</strong></div>
+                        <div>Car: <strong className="text-white">{ride?.vehicleDetails || 'Maruti Grand Vitara (White) • MH-12-SG-1983'}</strong></div>
+                        <div>Pickup: <strong className="text-white">{booking.exactPickupSpot?.address || booking.pickupPoint}</strong></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Verification Status Card */}
+                  <div className={`p-5 rounded-3xl border-2 transition ${
+                    booking.boardingVerified
+                      ? 'bg-emerald-50 border-emerald-300'
+                      : 'bg-amber-50 border-amber-200'
+                  }`}>
+                    {booking.boardingVerified ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shrink-0">
+                            <Check className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-black text-emerald-950">
+                              Boarding Verified by Driver! ✅
+                            </h4>
+                            <p className="text-xs text-emerald-800">
+                              You and driver {otherPartyName} have verified each other.
+                            </p>
+                          </div>
+                        </div>
+
+                        {ride?.status === 'in_progress' ? (
+                          <div className="pt-2 border-t border-emerald-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <span className="text-xs font-bold text-emerald-900">
+                              🚗 Ride has started! Live highway GPS navigation is active.
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleViewLiveRoute}
+                              className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2 transition"
+                            >
+                              <Navigation className="w-4 h-4" />
+                              View Live Route Map
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-emerald-800 font-medium">
+                            Driver will now start the trip. Once started, the live GPS route map will open automatically.
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-amber-200 text-amber-900 flex items-center justify-center font-bold animate-pulse shrink-0">
+                          ⏳
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-amber-950">
+                            Waiting for Driver to verify PIN...
+                          </h4>
+                          <p className="text-[11px] text-amber-800">
+                            When you reach the car, show driver {otherPartyName} your PIN <strong>{booking.boardingPin}</strong>.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 2: INTERACTIVE MAP & PICKUP POINT SETTER */}
           {activeTab === 'map' && (
             <div className="space-y-4">
               {/* Instructions Banner */}
@@ -517,7 +778,7 @@ export const RideCoordinationModal = ({
             </div>
           )}
 
-          {/* TAB 2: LIVE IN-APP CHAT & QUICK UPDATES */}
+          {/* TAB 3: LIVE IN-APP CHAT & QUICK UPDATES */}
           {activeTab === 'chat' && (
             <div className="flex flex-col h-[380px] sm:h-[420px]">
               {/* Message Stream */}
@@ -622,7 +883,7 @@ export const RideCoordinationModal = ({
           <div className="flex items-center gap-2">
             <span className="text-slate-400">Boarding PIN:</span>
             <span className="font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
-              {booking.boardingPin || '7821'}
+              {booking.boardingPin || '8429'}
             </span>
           </div>
         </div>

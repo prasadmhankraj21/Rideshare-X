@@ -117,9 +117,41 @@ export const PassengerDashboard = () => {
   // User's own bookings
   const myBookings = bookings.filter((b) => b.passengerId === currentUser?.id);
   const activeConfirmedBooking = myBookings.find((b) => b.status === 'confirmed');
-  const activeRideForPassenger = activeConfirmedBooking
-    ? rides.find((r) => r.id === activeConfirmedBooking.rideId)
-    : rides.find((r) => r.status === 'in_progress');
+  const activeRideForPassenger =
+    (selectedRideId && rides.find((r) => r.id === selectedRideId)) ||
+    (activeConfirmedBooking && rides.find((r) => r.id === activeConfirmedBooking.rideId)) ||
+    rides.find((r) => r.status === 'in_progress') ||
+    rides[0];
+
+  // Auto-open Coordination & Boarding PIN modal when driver confirms booking
+  const autoOpenedBookingIdRef = React.useRef(null);
+  React.useEffect(() => {
+    if (activeConfirmedBooking && activeConfirmedBooking.id !== autoOpenedBookingIdRef.current) {
+      autoOpenedBookingIdRef.current = activeConfirmedBooking.id;
+      setSelectedCoordinationBooking(activeConfirmedBooking);
+      setCoordinationModalOpen(true);
+      triggerToast(
+        'Ride Confirmed! 🎉',
+        `Driver confirmed your ride for ${activeConfirmedBooking.from} → ${activeConfirmedBooking.to}. Open Ride Hub to view Boarding PIN!`,
+        'success'
+      );
+    }
+  }, [activeConfirmedBooking?.id, activeConfirmedBooking?.status]);
+
+  // Auto-notify passenger when driver starts the ride and switch to live tracking
+  const rideStartedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (activeRideForPassenger?.status === 'in_progress' && !rideStartedRef.current) {
+      rideStartedRef.current = true;
+      triggerToast(
+        'Ride Started! 🚗💨',
+        `Your ride ${activeRideForPassenger.from} → ${activeRideForPassenger.to} is now on the highway! Live GPS tracking is active.`,
+        'info'
+      );
+      setSelectedRideId(activeRideForPassenger.id);
+      setActivePassengerTab('active_ride');
+    }
+  }, [activeRideForPassenger?.status, activeRideForPassenger?.id]);
 
   const openRideDetails = (ride) => {
     setActiveDetailRide(ride);
@@ -195,12 +227,17 @@ export const PassengerDashboard = () => {
                     Boarding PIN: {activeConfirmedBooking.boardingPin}
                   </span>
                 )}
+                {activeConfirmedBooking.boardingVerified && (
+                  <span className="text-xs bg-emerald-500 px-2.5 py-0.5 rounded-full text-white font-bold">
+                    Boarding Verified ✓
+                  </span>
+                )}
               </div>
               <h3 className="text-lg sm:text-xl font-black mt-1">
                 {activeConfirmedBooking.from} → {activeConfirmedBooking.to}
               </h3>
               <p className="text-xs text-emerald-100 mt-0.5 leading-relaxed">
-                Driver confirmed your request! Open the Ride Hub to coordinate the exact pickup spot on the map, share your location, or call/chat with your driver.
+                Driver confirmed your request! Open the Ride Hub to coordinate pickup on the map, view your Boarding PIN, or call/chat with driver.
               </p>
             </div>
           </div>
@@ -211,8 +248,56 @@ export const PassengerDashboard = () => {
               className="w-full md:w-auto px-5 py-3 bg-white hover:bg-emerald-50 active:scale-95 text-emerald-800 font-black text-xs rounded-2xl shadow-lg flex items-center justify-center gap-2 transition"
             >
               <MapPin className="w-4 h-4 text-emerald-600" />
-              Open Ride Hub & Set Pickup
+              Open Ride Hub & PIN
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Live Highway Journey In-Progress Banner */}
+      {activeRideForPassenger?.status === 'in_progress' && (
+        <div className="bg-gradient-to-r from-blue-700 via-indigo-600 to-teal-600 rounded-3xl p-5 sm:p-6 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 animate-in fade-in duration-300">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0 shadow-inner animate-pulse">
+              <Navigation className="w-6 h-6 text-emerald-200" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-400 text-slate-950 text-[10px] font-black uppercase tracking-wider font-bold">
+                  Live Highway Journey Active 🚗💨
+                </span>
+                <span className="text-xs bg-white/10 px-2.5 py-0.5 rounded-full font-mono text-emerald-200 font-bold border border-white/10">
+                  {activeRideForPassenger.from} → {activeRideForPassenger.to}
+                </span>
+              </div>
+              <h3 className="text-lg sm:text-xl font-black mt-1">
+                Your Ride is on the Route!
+              </h3>
+              <p className="text-xs text-blue-100 mt-0.5 leading-relaxed">
+                Driver has started the trip. Real-time GPS highway route tracking, speed monitoring, and milestone checkpoints are active.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+            <button
+              onClick={() => {
+                setSelectedRideId(activeRideForPassenger.id);
+                setActivePassengerTab('active_ride');
+              }}
+              className="w-full md:w-auto px-5 py-3 bg-white hover:bg-emerald-50 active:scale-95 text-blue-900 font-black text-xs rounded-2xl shadow-lg flex items-center justify-center gap-2 transition"
+            >
+              <Navigation className="w-4 h-4 text-teal-600" />
+              View Live Route Map
+            </button>
+            {activeConfirmedBooking && (
+              <button
+                onClick={() => handleOpenCoordination(activeConfirmedBooking)}
+                className="w-full md:w-auto px-4 py-3 bg-white/10 hover:bg-white/20 active:scale-95 text-white font-bold text-xs rounded-2xl border border-white/20 flex items-center justify-center gap-1.5 transition"
+              >
+                Ride Hub & Chat
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -790,9 +875,13 @@ export const PassengerDashboard = () => {
         <RideCoordinationModal
           isOpen={coordinationModalOpen}
           onClose={() => setCoordinationModalOpen(false)}
-          booking={selectedCoordinationBooking}
+          booking={bookings.find((b) => b.id === selectedCoordinationBooking?.id) || selectedCoordinationBooking}
           ride={rides.find((r) => r.id === selectedCoordinationBooking?.rideId)}
           isDriverView={false}
+          onSwitchToLiveMap={() => {
+            setSelectedRideId(selectedCoordinationBooking?.rideId);
+            setActivePassengerTab('active_ride');
+          }}
         />
       )}
     </div>
