@@ -160,6 +160,29 @@ export function AppContent() {
 
         {/* Profile View */}
         {activeTab === 'profile' && <ProfileView />}
+
+        {/* Fallback to Home if activeTab is unknown */}
+        {![
+          'home',
+          'how_it_works',
+          'driver_auth',
+          'passenger_auth',
+          'admin_auth',
+          'driver_dashboard',
+          'create_ride',
+          'driver_rides',
+          'driver_requests',
+          'passenger_dashboard',
+          'my_bookings',
+          'search_rides',
+          'admin_dashboard',
+          'admin_verifications',
+          'admin_users',
+          'admin_rides',
+          'admin_cancellations',
+          'active_ride',
+          'profile'
+        ].includes(activeTab) && <LandingPage />}
       </main>
 
       {/* Trust & Safety Platform Footer */}
