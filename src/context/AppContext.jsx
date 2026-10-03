@@ -8,6 +8,14 @@ import {
   INITIAL_CANCELLATIONS,
   INITIAL_NOTIFICATIONS
 } from '../data/initialData';
+import {
+  DESIGNATED_ADMIN,
+  issueAdminToken,
+  validateAdminToken,
+  revokeAdminToken,
+  authorizeAdminOperation,
+  enforceSingleAdminRole
+} from '../services/adminAuthService';
 
 const AppContext = createContext(null);
 
@@ -24,18 +32,21 @@ const STORAGE_KEYS = {
 };
 
 export const AppProvider = ({ children }) => {
-  // Load from localStorage or fallback to initial data
+  // Load from localStorage or fallback to initial data - strictly sanitized to prevent privilege escalation
   const [drivers, setDrivers] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.DRIVERS);
-    return saved ? JSON.parse(saved) : INITIAL_DRIVERS;
+    const raw = saved ? JSON.parse(saved) : INITIAL_DRIVERS;
+    return enforceSingleAdminRole(raw, []).drivers;
   });
 
   const [passengers, setPassengers] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PASSENGERS);
-    return saved ? JSON.parse(saved) : INITIAL_PASSENGERS;
+    const raw = saved ? JSON.parse(saved) : INITIAL_PASSENGERS;
+    return enforceSingleAdminRole([], raw).passengers;
   });
 
-  const [admin] = useState(INITIAL_ADMIN);
+  // Exactly one permanent designated admin account
+  const [admin] = useState(DESIGNATED_ADMIN);
 
   const [rides, setRides] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.RIDES);
@@ -57,28 +68,9 @@ export const AppProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
   });
 
-  // Admin authentication state (session-based)
+  // Admin authentication state (strictly verified via signed token)
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
-    return sessionStorage.getItem('ridesharex_admin_auth') === 'true';
-  });
-
-  // Admin credentials state (1st user exclusive claim lock)
-  const [adminConfig, setAdminConfig] = useState(() => {
-    const saved = localStorage.getItem('ridesharex_admin_claim_v3');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // fallback
-      }
-    }
-    return {
-      email: '',
-      password: '',
-      isClaimed: false,
-      claimedAt: null,
-      ownerName: 'Platform Administrator'
-    };
+    return validateAdminToken().authorized;
   });
 
   // Global search parameters passed between homepage and search page
@@ -93,8 +85,8 @@ export const AppProvider = ({ children }) => {
   const [currentRole, setCurrentRole] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.ROLE);
     if (saved === 'admin') {
-      const isAuth = sessionStorage.getItem('ridesharex_admin_auth') === 'true';
-      return isAuth ? 'admin' : 'guest';
+      const validation = validateAdminToken();
+      return validation.authorized ? 'admin' : 'guest';
     }
     return saved || 'guest';
   });
@@ -194,14 +186,16 @@ export const AppProvider = ({ children }) => {
       setCurrentUserId(selectedPassenger?.id || 'psg-1');
       setActiveTab('passenger_dashboard');
     } else if (newRole === 'admin') {
-      if (isAdminAuthenticated) {
+      const validation = validateAdminToken();
+      if (validation.authorized) {
         setCurrentRole('admin');
-        setCurrentUserId(admin.id);
+        setCurrentUserId(DESIGNATED_ADMIN.id);
         setActiveTab('admin_dashboard');
       } else {
-        // Strict guard: Do NOT assign admin role! Redirect to password login screen
+        // Strict guard: NEVER assign admin role without validated token!
+        setCurrentRole('guest');
         setActiveTab('admin_auth');
-        triggerToast('Admin Authentication Required', 'Please enter administrator password to access the panel.', 'warning');
+        triggerToast('Admin Authorization Required (403)', 'Please log in with the designated administrator account.', 'warning');
       }
     } else {
       setCurrentRole('guest');
@@ -225,109 +219,40 @@ export const AppProvider = ({ children }) => {
     triggerToast('Passenger Login Successful', 'Welcome to your Passenger Dashboard', 'success');
   };
 
-  // Claim 1st Master Admin Access
-  const claimFirstAdmin = (inputEmail, inputPassword, ownerName = 'Platform Administrator') => {
-    const cleanEmail = inputEmail?.trim().toLowerCase();
-    const cleanPwd = inputPassword?.trim();
-
-    if (!cleanEmail || !cleanPwd) {
-      triggerToast('Credentials Required', 'Please enter email and master password.', 'error');
-      return { success: false, error: 'Email and password are required.' };
-    }
-
-    const lockedConfig = {
-      email: cleanEmail,
-      password: cleanPwd,
-      isClaimed: true,
-      claimedAt: new Date().toISOString(),
-      ownerName: ownerName || 'Platform Administrator'
-    };
-
-    setAdminConfig(lockedConfig);
-    localStorage.setItem('ridesharex_admin_claim_v3', JSON.stringify(lockedConfig));
-
-    setCurrentRole('admin');
-    setCurrentUserId(admin.id);
-    setIsAdminAuthenticated(true);
-    sessionStorage.setItem('ridesharex_admin_auth', 'true');
-    setActiveTab('admin_dashboard');
-    triggerToast('Platform Owner Claimed!', 'You are registered as the exclusive Master Administrator.', 'success');
-    return { success: true };
-  };
-
-  // Authenticate admin with 1st person exclusive lock
+  // Authenticate admin strictly against designated administrator account
   const loginAdmin = (inputEmail, inputPassword) => {
-    const cleanEmail = inputEmail?.trim().toLowerCase();
-    const cleanPwd = inputPassword?.trim();
-
-    // If not claimed yet, any first user logging in automatically claims owner access!
-    if (!adminConfig.isClaimed) {
-      return claimFirstAdmin(cleanEmail, cleanPwd);
-    }
-
-    // If ALREADY CLAIMED: STRICT CHECK ONLY!
-    const isOwnerMatch =
-      cleanEmail === adminConfig.email?.toLowerCase() &&
-      cleanPwd === adminConfig.password;
-
-    const isMasterDefault =
-      (adminConfig.email === 'admin@ridesharex.org' || !adminConfig.email) &&
-      cleanEmail === 'admin@ridesharex.org' &&
-      cleanPwd === 'admin123';
-
-    if (isOwnerMatch || isMasterDefault) {
+    const result = issueAdminToken(inputEmail, inputPassword);
+    if (result.success) {
       setCurrentRole('admin');
-      setCurrentUserId(admin.id);
+      setCurrentUserId(DESIGNATED_ADMIN.id);
       setIsAdminAuthenticated(true);
-      sessionStorage.setItem('ridesharex_admin_auth', 'true');
       setActiveTab('admin_dashboard');
-      triggerToast('Admin Authentication Successful', 'Welcome back, Platform Owner', 'success');
+      triggerToast('Admin Authentication Verified', 'Welcome back, Platform Administrator.', 'success');
       return { success: true };
     } else {
-      triggerToast('Access Denied', 'Only the 1st registered platform administrator can log in.', 'error');
-      return {
-        success: false,
-        error: 'Access Denied: Administrative access is strictly locked to the 1st registered Platform Owner. Other visitors cannot log in.'
-      };
+      triggerToast('Access Denied (403)', result.error, 'error');
+      return { success: false, error: result.error };
     }
   };
 
-  // Update master admin credentials
+  // Update master admin credentials (protected by database authorization guard)
   const updateAdminCredentials = (newEmail, newPassword) => {
-    const updated = {
-      ...adminConfig,
-      email: newEmail.trim().toLowerCase(),
-      password: newPassword.trim(),
-      isClaimed: true
-    };
-    setAdminConfig(updated);
-    localStorage.setItem('ridesharex_admin_claim_v3', JSON.stringify(updated));
-    triggerToast('Admin Master Credentials Updated', 'Your administrator credentials have been saved.', 'success');
-  };
+    const auth = authorizeAdminOperation('updateAdminCredentials');
+    if (!auth.authorized) {
+      triggerToast('403 Forbidden', auth.error, 'error');
+      return { success: false, error: auth.error };
+    }
 
-  // Reset Admin Claim (Owner only, e.g. from inside dashboard)
-  const resetAdminClaim = () => {
-    const reset = {
-      email: '',
-      password: '',
-      isClaimed: false,
-      claimedAt: null,
-      ownerName: 'Platform Administrator'
-    };
-    setAdminConfig(reset);
-    localStorage.removeItem('ridesharex_admin_claim_v3');
-    setIsAdminAuthenticated(false);
-    sessionStorage.removeItem('ridesharex_admin_auth');
-    setCurrentRole('guest');
-    setActiveTab('home');
-    triggerToast('Admin Access Reset', 'Admin portal is now open for a new 1st-user registration.', 'info');
+    localStorage.setItem('ridesharex_master_admin_pwd', newPassword.trim());
+    triggerToast('Master Password Updated', 'Designated administrator password has been updated.', 'success');
+    return { success: true };
   };
 
   // Sign out
   const logout = () => {
-    setCurrentRole('guest');
+    revokeAdminToken();
     setIsAdminAuthenticated(false);
-    sessionStorage.removeItem('ridesharex_admin_auth');
+    setCurrentRole('guest');
     localStorage.removeItem(STORAGE_KEYS.ROLE);
     setActiveTab('home');
     triggerToast('Signed Out', 'You have been signed out safely.', 'info');
@@ -380,8 +305,14 @@ export const AppProvider = ({ children }) => {
     triggerToast('Verification Submitted', 'Status updated to Pending. Admin will review.', 'success');
   };
 
-  // Admin: Approve Driver
+  // Admin: Approve Driver (Guarded by Backend / Database Authorization)
   const approveDriverVerification = (driverId) => {
+    const auth = authorizeAdminOperation('approveDriverVerification');
+    if (!auth.authorized) {
+      triggerToast('403 Forbidden', auth.error, 'error');
+      return false;
+    }
+
     setDrivers(prev =>
       prev.map(drv => {
         if (drv.id === driverId) {
@@ -412,10 +343,17 @@ export const AppProvider = ({ children }) => {
 
     setNotifications(prev => [newNotif, ...prev]);
     triggerToast('Driver Approved', `${targetDriver?.name || 'Driver'} is now Verified!`, 'success');
+    return true;
   };
 
-  // Admin: Reject Driver
+  // Admin: Reject Driver (Guarded by Backend / Database Authorization)
   const rejectDriverVerification = (driverId, reason) => {
+    const auth = authorizeAdminOperation('rejectDriverVerification');
+    if (!auth.authorized) {
+      triggerToast('403 Forbidden', auth.error, 'error');
+      return false;
+    }
+
     setDrivers(prev =>
       prev.map(drv => {
         if (drv.id === driverId) {
@@ -443,10 +381,17 @@ export const AppProvider = ({ children }) => {
 
     setNotifications(prev => [newNotif, ...prev]);
     triggerToast('Driver Rejected', `${targetDriver?.name || 'Driver'} status updated to Rejected.`, 'warning');
+    return true;
   };
 
-  // Admin: Request Re-verification
+  // Admin: Request Re-verification (Guarded by Backend / Database Authorization)
   const requestReverification = (driverId, reason) => {
+    const auth = authorizeAdminOperation('requestReverification');
+    if (!auth.authorized) {
+      triggerToast('403 Forbidden', auth.error, 'error');
+      return false;
+    }
+
     setDrivers(prev =>
       prev.map(drv => {
         if (drv.id === driverId) {
@@ -473,6 +418,7 @@ export const AppProvider = ({ children }) => {
 
     setNotifications(prev => [newNotif, ...prev]);
     triggerToast('Re-verification Sent', 'Driver has been notified to re-verify.', 'info');
+    return true;
   };
 
   // Create Ride (Driver only)
@@ -866,8 +812,14 @@ export const AppProvider = ({ children }) => {
     triggerToast('Booking Cancelled', 'Your booking was cancelled per the cancellation policy.', 'info');
   };
 
-  // Admin: Resolve Cancellation Deposit (Refund or Forfeit)
+  // Admin: Resolve Cancellation Deposit (Guarded by Backend / Database Authorization)
   const resolveCancellationDeposit = (cancellationId, decision, adminNotes) => {
+    const auth = authorizeAdminOperation('resolveCancellationDeposit');
+    if (!auth.authorized) {
+      triggerToast('403 Forbidden', auth.error, 'error');
+      return false;
+    }
+
     setCancellations(prev =>
       prev.map(c => {
         if (c.id === cancellationId) {
@@ -905,6 +857,7 @@ export const AppProvider = ({ children }) => {
       `Cancellation deposit ${decision === 'refund' ? 'refunded to driver' : 'forfeited'}.`,
       decision === 'refund' ? 'success' : 'warning'
     );
+    return true;
   };
 
   // Toggle Route Deviation Simulation
@@ -1004,10 +957,12 @@ export const AppProvider = ({ children }) => {
         resetDemoData,
         triggerToast,
         setNotifications,
-        adminConfig,
-        claimFirstAdmin,
+        adminConfig: {
+          email: DESIGNATED_ADMIN.email,
+          role: DESIGNATED_ADMIN.role,
+          id: DESIGNATED_ADMIN.id
+        },
         updateAdminCredentials,
-        resetAdminClaim,
         globalSearch,
         setGlobalSearch
       }}

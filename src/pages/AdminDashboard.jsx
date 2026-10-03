@@ -36,13 +36,15 @@ export const AdminDashboard = () => {
     triggerToast,
     logout,
     adminConfig,
-    resetAdminClaim
+    updateAdminCredentials
   } = useApp();
 
   const [adminTab, setAdminTab] = useState('overview'); // 'overview' | 'verifications' | 'users' | 'rides' | 'bookings' | 'cancellations'
   const [selectedDriverForInspect, setSelectedDriverForInspect] = useState(null);
   const [selectedCnlForReview, setSelectedCnlForReview] = useState(null);
   const [adminNotes, setAdminNotes] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newMasterPassword, setNewMasterPassword] = useState('');
 
   // Dashboard Stats Calculations
   const totalDrivers = drivers.length;
@@ -167,24 +169,24 @@ export const AdminDashboard = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm text-white">Platform Owner Security Lock</span>
+                  <span className="font-bold text-sm text-white">Designated Platform Administrator</span>
                   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    Active & Protected
+                    Backend Authorized
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  Exclusive Master Administrator: <strong className="text-white">{adminConfig?.email || 'admin@ridesharex.org'}</strong> (Registered 1st Admin)
+                  Permanent Admin Account: <strong className="text-white">{adminConfig?.email || 'admin@ridesharex.org'}</strong> • Backend guards enforce 403 Forbidden for all non-designated users.
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 text-xs">
               <button
-                onClick={resetAdminClaim}
-                className="px-3.5 py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 rounded-xl border border-slate-700 transition font-semibold"
-                title="Reset owner lock if you want another user to register as 1st admin"
+                onClick={() => setShowPasswordModal(true)}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition font-semibold flex items-center gap-1.5 shadow-sm"
               >
-                Release Owner Lock
+                <KeyRound className="w-3.5 h-3.5" />
+                Update Master Password
               </button>
             </div>
           </div>
@@ -652,6 +654,73 @@ export const AdminDashboard = () => {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Update Master Password Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <h4 className="font-bold text-slate-900 text-sm">Update Master Password</h4>
+              </div>
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Set a new secure master password for the designated administrator account (<strong className="text-slate-800">{adminConfig?.email || 'admin@ridesharex.org'}</strong>). Protected by backend authorization guard.
+            </p>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                New Master Password *
+              </label>
+              <input
+                type="password"
+                required
+                placeholder="Enter new master password"
+                value={newMasterPassword}
+                onChange={(e) => setNewMasterPassword(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setNewMasterPassword('');
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!newMasterPassword.trim()}
+                onClick={() => {
+                  if (newMasterPassword.trim()) {
+                    updateAdminCredentials(adminConfig?.email, newMasterPassword.trim());
+                    setShowPasswordModal(false);
+                    setNewMasterPassword('');
+                  }
+                }}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition"
+              >
+                Save New Password
+              </button>
+            </div>
           </div>
         </div>
       )}

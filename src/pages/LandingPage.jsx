@@ -290,27 +290,21 @@ export const LandingPage = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-900/60 px-2 py-0.5 rounded-full border border-indigo-700">
-                    Platform Owner
+                    Staff & Governance
                   </span>
-                  {adminConfig?.isClaimed ? (
-                    <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                      <Lock className="w-3 h-3" /> Master Locked
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-bold text-amber-400 animate-pulse">
-                      ★ 1st User Setup Open
-                    </span>
-                  )}
+                  <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> Designated Admin
+                  </span>
                 </div>
                 <h3 className="text-xl font-black text-white mt-1">Admin Portal</h3>
                 <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                  Strict platform oversight. The 1st person who registers claims master administrative access. All subsequent visitors cannot log in.
+                  Strict platform oversight. Restricted strictly to the designated administrator account (<strong className="text-white">admin@ridesharex.org</strong>). General visitors, drivers, and passengers cannot access this panel.
                 </p>
               </div>
               <ul className="text-xs text-slate-400 space-y-1.5 pt-2">
                 <li className="flex items-center gap-2">✓ Approve/Reject Driver Licenses</li>
                 <li className="flex items-center gap-2">✓ Resolve Cancellation Deposits</li>
-                <li className="flex items-center gap-2">✓ Exclusive 1st-User Locked Access</li>
+                <li className="flex items-center gap-2">✓ Cryptographic Backend Authorization</li>
               </ul>
             </div>
 
@@ -326,7 +320,7 @@ export const LandingPage = () => {
                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2"
               >
                 <ShieldCheck className="w-4 h-4" />
-                {adminConfig?.isClaimed ? 'Admin Login (Owner Only)' : '1st User Admin Setup'}
+                Admin Portal (Staff Only)
               </button>
             </div>
           </div>

@@ -12,6 +12,8 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { ProfileView } from './pages/ProfileView';
 import { SearchRidesPage } from './pages/SearchRidesPage';
 import { LiveTrackingMap } from './components/LiveTrackingMap';
+import { ProtectedAdminRoute } from './components/ProtectedAdminRoute';
+import { validateAdminToken } from './services/adminAuthService';
 import {
   Car,
   User,
@@ -46,6 +48,39 @@ export function AppContent() {
   React.useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [activeTab]);
+
+  // URL routing & security listener: Intercept manual unauthorized URL entries
+  React.useEffect(() => {
+    const handleUrlNavigation = () => {
+      const hash = window.location.hash.toLowerCase();
+      const search = window.location.search.toLowerCase();
+
+      const isAdminRoute =
+        hash.includes('admin') ||
+        search.includes('admin') ||
+        hash === '#admin_dashboard' ||
+        search.includes('tab=admin');
+
+      if (isAdminRoute) {
+        const validation = validateAdminToken();
+        if (!validation.authorized || currentRole !== 'admin') {
+          triggerToast(
+            'Access Denied (403 Forbidden)',
+            'Admin Panel is strictly restricted to the designated administrator account (admin@ridesharex.org).',
+            'error'
+          );
+          window.history.replaceState(null, '', window.location.pathname);
+          setActiveTab('admin_auth');
+        } else {
+          setActiveTab('admin_dashboard');
+        }
+      }
+    };
+
+    handleUrlNavigation();
+    window.addEventListener('hashchange', handleUrlNavigation);
+    return () => window.removeEventListener('hashchange', handleUrlNavigation);
+  }, [currentRole]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
@@ -82,17 +117,15 @@ export function AppContent() {
         {/* Dedicated Search Rides View */}
         {activeTab === 'search_rides' && <SearchRidesPage />}
 
-        {/* Admin Area (Strictly Protected: Requires verified admin role) */}
+        {/* Admin Area (Strictly Protected Route: Requires cryptographically verified admin token) */}
         {(activeTab === 'admin_dashboard' ||
           activeTab === 'admin_verifications' ||
           activeTab === 'admin_users' ||
           activeTab === 'admin_rides' ||
           activeTab === 'admin_cancellations') && (
-          currentRole === 'admin' ? (
+          <ProtectedAdminRoute>
             <AdminDashboard />
-          ) : (
-            <AdminAuth restrictedNotice={true} />
-          )
+          </ProtectedAdminRoute>
         )}
 
         {/* Standalone Active Ride Live GPS Screen */}
