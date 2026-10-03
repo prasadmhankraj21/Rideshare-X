@@ -30,6 +30,17 @@ import {
   getRealUsers,
   getRealRides
 } from '../services/supabaseClient';
+import {
+  isFirebaseConfigured,
+  firebaseSignUpDriver,
+  firebaseSignUpPassenger,
+  firebaseSignInUser,
+  firebaseSaveRide,
+  firebaseFetchAllRides,
+  subscribeToRealtimeRides,
+  subscribeToRealtimeBookings,
+  syncLocalDataToFirebase
+} from '../services/firebaseClient';
 
 const AppContext = createContext(null);
 
@@ -220,9 +231,16 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTab);
   }, [activeTab]);
 
-  // Refresh real rides from Supabase & persistent storage (with optional search criteria)
+  // Refresh real rides from Firebase, Supabase & persistent storage (with optional search criteria)
   const refreshRides = async (filters = null) => {
     try {
+      if (isFirebaseConfigured()) {
+        const fbRides = await firebaseFetchAllRides();
+        if (fbRides && fbRides.length > 0) {
+          setRides(fbRides);
+          return fbRides;
+        }
+      }
       if (filters && (filters.from || filters.to || filters.date || filters.seats)) {
         const searchRes = await supabaseSearchRides(filters);
         if (searchRes && searchRes.success && searchRes.rides) {
@@ -248,6 +266,27 @@ export const AppProvider = ({ children }) => {
   // Sync real published rides on mount
   useEffect(() => {
     refreshRides();
+  }, []);
+
+  // Real-time Cloud Firestore synchronization across any phone, laptop, or browser
+  useEffect(() => {
+    if (isFirebaseConfigured()) {
+      syncLocalDataToFirebase();
+      const unsubRides = subscribeToRealtimeRides((liveRides) => {
+        if (liveRides && liveRides.length > 0) {
+          setRides(liveRides);
+        }
+      });
+      const unsubBookings = subscribeToRealtimeBookings((liveBookings) => {
+        if (liveBookings && liveBookings.length > 0) {
+          setBookings(liveBookings);
+        }
+      });
+      return () => {
+        if (typeof unsubRides === 'function') unsubRides();
+        if (typeof unsubBookings === 'function') unsubBookings();
+      };
+    }
   }, []);
 
   // Cross-tab synchronization so Driver publish in Tab A is immediately visible to Passenger in Tab B
@@ -334,9 +373,14 @@ export const AppProvider = ({ children }) => {
     triggerToast('Passenger Login Successful', 'Welcome to your Passenger Dashboard', 'success');
   };
 
-  // Register Driver (Real Supabase Auth + Database)
+  // Register Driver (Real Firebase / Supabase Auth + Database)
   const registerDriver = async ({ email, password, name, phone, city }) => {
-    const res = await supabaseSignUpDriver({ email, password, fullName: name, phone, city });
+    let res = null;
+    if (isFirebaseConfigured()) {
+      res = await firebaseSignUpDriver({ email, password, fullName: name, phone, city });
+    } else {
+      res = await supabaseSignUpDriver({ email, password, fullName: name, phone, city });
+    }
     if (!res.success) {
       triggerToast('Registration Failed', res.error, 'error');
       return { success: false, error: res.error };
@@ -350,9 +394,14 @@ export const AppProvider = ({ children }) => {
     return { success: true, user: res.user };
   };
 
-  // Login Driver with credentials (Real Supabase Auth + Database)
+  // Login Driver with credentials (Real Firebase / Supabase Auth + Database)
   const loginDriverWithCredentials = async (email, password) => {
-    const res = await supabaseSignInUser({ email, password, expectedRole: 'driver' });
+    let res = null;
+    if (isFirebaseConfigured()) {
+      res = await firebaseSignInUser({ email, password, expectedRole: 'driver' });
+    } else {
+      res = await supabaseSignInUser({ email, password, expectedRole: 'driver' });
+    }
     if (!res.success) {
       triggerToast('Sign In Failed', res.error, 'error');
       return { success: false, error: res.error };
@@ -366,9 +415,14 @@ export const AppProvider = ({ children }) => {
     return { success: true, user: res.user };
   };
 
-  // Register Passenger (Real Supabase Auth + Database)
+  // Register Passenger (Real Firebase / Supabase Auth + Database)
   const registerPassenger = async ({ email, password, name, phone }) => {
-    const res = await supabaseSignUpPassenger({ email, password, fullName: name, phone });
+    let res = null;
+    if (isFirebaseConfigured()) {
+      res = await firebaseSignUpPassenger({ email, password, fullName: name, phone });
+    } else {
+      res = await supabaseSignUpPassenger({ email, password, fullName: name, phone });
+    }
     if (!res.success) {
       triggerToast('Registration Failed', res.error, 'error');
       return { success: false, error: res.error };
@@ -382,9 +436,14 @@ export const AppProvider = ({ children }) => {
     return { success: true, user: res.user };
   };
 
-  // Login Passenger with credentials (Real Supabase Auth + Database)
+  // Login Passenger with credentials (Real Firebase / Supabase Auth + Database)
   const loginPassengerWithCredentials = async (email, password) => {
-    const res = await supabaseSignInUser({ email, password, expectedRole: 'passenger' });
+    let res = null;
+    if (isFirebaseConfigured()) {
+      res = await firebaseSignInUser({ email, password, expectedRole: 'passenger' });
+    } else {
+      res = await supabaseSignInUser({ email, password, expectedRole: 'passenger' });
+    }
     if (!res.success) {
       triggerToast('Sign In Failed', res.error, 'error');
       return { success: false, error: res.error };
@@ -666,10 +725,13 @@ export const AppProvider = ({ children }) => {
       activeLocation: null
     };
 
-    // Await database persistence
+    // Await database persistence (Firebase Firestore & Supabase)
+    if (isFirebaseConfigured()) {
+      await firebaseSaveRide(newRide);
+    }
     const saveResult = await supabaseSaveRide(newRide);
-    if (!saveResult.success) {
-      console.error('[Supabase Save Error]', saveResult.error);
+    if (!saveResult.success && !isFirebaseConfigured()) {
+      console.error('[Database Save Error]', saveResult.error);
       triggerToast('Database Error', saveResult.error || 'Failed to save ride to database.', 'error');
       return null;
     }
