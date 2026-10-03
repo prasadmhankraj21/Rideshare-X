@@ -71,20 +71,32 @@ export const PassengerDashboard = () => {
   const filteredRides = rides.filter((r) => {
     if (!PUBLISHED_STATUSES.includes(r.status)) return false;
 
+    const rideFrom = (r.from || r.from_location || '').toLowerCase();
+    const rideTo = (r.to || r.to_location || '').toLowerCase();
+    const pickupPoint = (r.pickupDropPoints?.[0]?.point || '').toLowerCase();
+    const dropoffPoint = (r.pickupDropPoints?.[1]?.point || '').toLowerCase();
+
     const cleanFrom = searchFrom?.trim().toLowerCase();
     const cleanTo = searchTo?.trim().toLowerCase();
     const cleanDate = searchDate?.trim();
 
-    if (cleanFrom && !r.from?.toLowerCase().includes(cleanFrom)) {
+    if (cleanFrom && !rideFrom.includes(cleanFrom) && !pickupPoint.includes(cleanFrom)) {
       return false;
     }
-    if (cleanTo && !r.to?.toLowerCase().includes(cleanTo)) {
+    if (cleanTo && !rideTo.includes(cleanTo) && !dropoffPoint.includes(cleanTo)) {
       return false;
     }
-    if (cleanDate && r.date?.trim() !== cleanDate && r.date !== 'Today') {
-      return false;
+    if (cleanDate) {
+      const rideDateStr = String(r.date || '').trim();
+      const matchesDate =
+        rideDateStr === cleanDate ||
+        rideDateStr.startsWith(cleanDate) ||
+        rideDateStr === 'Today' ||
+        rideDateStr.toLowerCase().includes(cleanDate.toLowerCase());
+      if (!matchesDate) return false;
     }
-    if (onlyVerifiedDrivers && !r.driverVerified) {
+    const isVerified = Boolean(r.driverVerified ?? r.driver_verified);
+    if (onlyVerifiedDrivers && !isVerified) {
       return false;
     }
     return true;
