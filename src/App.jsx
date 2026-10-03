@@ -66,7 +66,7 @@ export function AppContent() {
         if (!validation.authorized || currentRole !== 'admin') {
           triggerToast(
             'Access Denied (403 Forbidden)',
-            'Admin Panel is strictly restricted to the designated administrator account (admin@ridesharex.org).',
+            'Admin Panel is strictly restricted to the designated administrator account (prasadmhankraj21@gmail.com).',
             'error'
           );
           window.history.replaceState(null, '', window.location.pathname);

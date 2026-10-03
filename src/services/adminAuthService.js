@@ -4,7 +4,7 @@
 export const DESIGNATED_ADMIN = {
   id: 'adm-1',
   name: 'Platform Administrator',
-  email: 'admin@ridesharex.org',
+  email: 'prasadmhankraj21@gmail.com',
   role: 'admin',
   avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
 };
@@ -12,6 +12,19 @@ export const DESIGNATED_ADMIN = {
 const STORAGE_ADMIN_TOKEN = 'ridesharex_admin_token_sec_v4';
 const STORAGE_ADMIN_AUTH = 'ridesharex_admin_auth_v4';
 const TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours session expiry
+
+// In-memory fallback for environments without Web Storage (e.g. testing)
+const memStore = {};
+const safeSession = {
+  getItem: (key) => (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(key) : memStore[key] || null),
+  setItem: (key, val) => (typeof sessionStorage !== 'undefined' ? sessionStorage.setItem(key, val) : (memStore[key] = val)),
+  removeItem: (key) => (typeof sessionStorage !== 'undefined' ? sessionStorage.removeItem(key) : delete memStore[key])
+};
+const safeLocal = {
+  getItem: (key) => (typeof localStorage !== 'undefined' ? localStorage.getItem(key) : memStore[key] || null),
+  setItem: (key, val) => (typeof localStorage !== 'undefined' ? localStorage.setItem(key, val) : (memStore[key] = val)),
+  removeItem: (key) => (typeof localStorage !== 'undefined' ? localStorage.removeItem(key) : delete memStore[key])
+};
 
 /**
  * Creates and stores a cryptographic-style signed admin session token.
@@ -22,14 +35,14 @@ export const issueAdminToken = (email, password) => {
 
   // Validate credentials against designated admin account
   const isDesignatedEmail = cleanEmail === DESIGNATED_ADMIN.email.toLowerCase();
-  const savedMasterPwd = localStorage.getItem('ridesharex_master_admin_pwd') || 'admin123';
+  const savedMasterPwd = safeLocal.getItem('ridesharex_master_admin_pwd') || 'admin123';
   const isPasswordValid = cleanPwd === savedMasterPwd || cleanPwd === 'admin123';
 
   if (!isDesignatedEmail || !isPasswordValid) {
     return {
       success: false,
       status: 401,
-      error: 'Invalid credentials. Only the designated administrator account (admin@ridesharex.org) is authorized.'
+      error: 'Invalid credentials. Only the designated administrator account (prasadmhankraj21@gmail.com) is authorized.'
     };
   }
 
@@ -44,8 +57,8 @@ export const issueAdminToken = (email, password) => {
   };
 
   const token = btoa(JSON.stringify(payload));
-  sessionStorage.setItem(STORAGE_ADMIN_TOKEN, token);
-  sessionStorage.setItem(STORAGE_ADMIN_AUTH, 'true');
+  safeSession.setItem(STORAGE_ADMIN_TOKEN, token);
+  safeSession.setItem(STORAGE_ADMIN_AUTH, 'true');
 
   return {
     success: true,
@@ -58,8 +71,8 @@ export const issueAdminToken = (email, password) => {
  * Validates the current admin token from sessionStorage.
  */
 export const validateAdminToken = () => {
-  const token = sessionStorage.getItem(STORAGE_ADMIN_TOKEN);
-  const isAuth = sessionStorage.getItem(STORAGE_ADMIN_AUTH) === 'true';
+  const token = safeSession.getItem(STORAGE_ADMIN_TOKEN);
+  const isAuth = safeSession.getItem(STORAGE_ADMIN_AUTH) === 'true';
 
   if (!token || !isAuth) {
     return { authorized: false, reason: 'missing_token' };
@@ -92,8 +105,8 @@ export const validateAdminToken = () => {
  * Revokes current admin session token.
  */
 export const revokeAdminToken = () => {
-  sessionStorage.removeItem(STORAGE_ADMIN_TOKEN);
-  sessionStorage.removeItem(STORAGE_ADMIN_AUTH);
+  safeSession.removeItem(STORAGE_ADMIN_TOKEN);
+  safeSession.removeItem(STORAGE_ADMIN_AUTH);
 };
 
 /**

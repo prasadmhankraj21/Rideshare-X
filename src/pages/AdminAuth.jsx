@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 export const AdminAuth = ({ restrictedNotice = false }) => {
   const { loginAdmin, setActiveTab } = useApp();
 
-  const [email, setEmail] = useState('admin@ridesharex.org');
+  const [email, setEmail] = useState('prasadmhankraj21@gmail.com');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -18,7 +18,7 @@ export const AdminAuth = ({ restrictedNotice = false }) => {
     const result = loginAdmin(email, password);
     if (!result?.success) {
       setErrorMessage(
-        result?.error || 'Access Denied (403): Only the designated platform administrator (admin@ridesharex.org) is authorized.'
+        result?.error || 'Access Denied (403): Only the designated platform administrator (prasadmhankraj21@gmail.com) is authorized.'
       );
     }
     setIsSubmitting(false);
@@ -42,7 +42,7 @@ export const AdminAuth = ({ restrictedNotice = false }) => {
           <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
           <div>
             <span className="font-bold block text-rose-950 text-sm mb-0.5">403 Forbidden — Access Denied</span>
-            You attempted to access the protected Administration Panel. Access is strictly restricted to the designated platform administrator (<span className="font-bold text-rose-950">admin@ridesharex.org</span>). Drivers, passengers, and unregistered accounts are forbidden.
+            You attempted to access the protected Administration Panel. Access is strictly restricted to the designated platform administrator (<span className="font-bold text-rose-950">prasadmhankraj21@gmail.com</span>). Drivers, passengers, and unregistered accounts are forbidden.
           </div>
         </div>
       )}
@@ -69,7 +69,7 @@ export const AdminAuth = ({ restrictedNotice = false }) => {
           <Lock className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
           <div>
             <strong className="text-slate-800 block mb-0.5">Designated Master Account:</strong>
-            Strict backend authorization enforced. Only <strong className="text-slate-900">admin@ridesharex.org</strong> can authenticate. General visitors, drivers, and passengers cannot log into this portal.
+            Strict backend authorization enforced. Only <strong className="text-slate-900">prasadmhankraj21@gmail.com</strong> can authenticate. General visitors, drivers, and passengers cannot log into this portal.
           </div>
         </div>
 
@@ -92,7 +92,7 @@ export const AdminAuth = ({ restrictedNotice = false }) => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@ridesharex.org"
+                placeholder="prasadmhankraj21@gmail.com"
                 className="w-full pl-9 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               />
             </div>

@@ -168,7 +168,7 @@ export const INITIAL_PASSENGERS = [
 export const INITIAL_ADMIN = {
   id: 'adm-1',
   name: 'System Administrator',
-  email: 'admin@ridesharex.org',
+  email: 'prasadmhankraj21@gmail.com',
   role: 'admin',
   avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
 };

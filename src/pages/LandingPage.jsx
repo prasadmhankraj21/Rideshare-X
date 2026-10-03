@@ -298,7 +298,7 @@ export const LandingPage = () => {
                 </div>
                 <h3 className="text-xl font-black text-white mt-1">Admin Portal</h3>
                 <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                  Strict platform oversight. Restricted strictly to the designated administrator account (<strong className="text-white">admin@ridesharex.org</strong>). General visitors, drivers, and passengers cannot access this panel.
+                  Strict platform oversight. Restricted strictly to the designated administrator account (<strong className="text-white">prasadmhankraj21@gmail.com</strong>). General visitors, drivers, and passengers cannot access this panel.
                 </p>
               </div>
               <ul className="text-xs text-slate-400 space-y-1.5 pt-2">

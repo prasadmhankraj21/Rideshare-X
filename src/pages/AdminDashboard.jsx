@@ -175,7 +175,7 @@ export const AdminDashboard = () => {
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  Permanent Admin Account: <strong className="text-white">{adminConfig?.email || 'admin@ridesharex.org'}</strong> • Backend guards enforce 403 Forbidden for all non-designated users.
+                  Permanent Admin Account: <strong className="text-white">{adminConfig?.email || 'prasadmhankraj21@gmail.com'}</strong> • Backend guards enforce 403 Forbidden for all non-designated users.
                 </p>
               </div>
             </div>
@@ -678,7 +678,7 @@ export const AdminDashboard = () => {
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
-              Set a new secure master password for the designated administrator account (<strong className="text-slate-800">{adminConfig?.email || 'admin@ridesharex.org'}</strong>). Protected by backend authorization guard.
+              Set a new secure master password for the designated administrator account (<strong className="text-slate-800">{adminConfig?.email || 'prasadmhankraj21@gmail.com'}</strong>). Protected by backend authorization guard.
             </p>
 
             <div>
