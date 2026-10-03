@@ -134,13 +134,26 @@ const safeStorage = {
 };
 
 /**
- * Helper to get unique UUID
+ * Helper to get RFC4122 compliant unique UUID
  */
-const generateUUID = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
+export const generateUUID = () => {
+  if (typeof crypto !== 'undefined') {
+    if (crypto.randomUUID) {
+      try {
+        return crypto.randomUUID();
+      } catch {}
+    }
+    if (crypto.getRandomValues) {
+      return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+        (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
+      );
+    }
   }
-  return 'usr-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 };
 
 /**
@@ -570,63 +583,81 @@ export const supabaseSignInUser = async ({ email, password, expectedRole }) => {
  * Saves a real ride created by an authenticated driver to Supabase and persistent storage
  */
 export const supabaseSaveRide = async (ride) => {
-  // Always save locally to ensure instant UI update
-  saveRealRide(ride);
+  const ridePayload = {
+    ...ride,
+    status: ride.status || 'published'
+  };
 
-  // If Supabase is configured, insert to Supabase 'rides' table
+  // Always save locally to ensure instant UI update and persistence
+  saveRealRide(ridePayload);
+
+  // If Supabase is configured, insert/upsert to Supabase 'rides' table
   if (isSupabaseConfigured() && supabase) {
     try {
-      const { error } = await supabase.from('rides').upsert({
-        id: ride.id,
-        driver_id: ride.driverId,
-        driver_name: ride.driverName,
-        driver_avatar: ride.driverAvatar,
-        driver_rating: ride.driverRating,
-        driver_verified: ride.driverVerified,
-        from_location: ride.from,
-        to_location: ride.to,
-        from_coordinates: ride.fromCoordinates,
-        to_coordinates: ride.toCoordinates,
-        date: ride.date,
-        departure_time: ride.departureTime,
-        estimated_arrival_time: ride.estimatedArrivalTime,
-        estimated_duration: ride.estimatedDuration,
-        vehicle_type: ride.vehicleType,
-        vehicle_details: ride.vehicleDetails,
-        total_seats: ride.totalSeats,
-        available_seats: ride.availableSeats,
-        total_passenger_seats_allowed: ride.totalPassengerSeatsAllowed,
-        shared_cost_per_seat: ride.sharedCostPerSeat,
-        cost_breakdown: ride.costBreakdown,
-        cancellation_deposit: ride.cancellationDeposit,
-        deposit_status: ride.depositStatus,
-        pickup_drop_points: ride.pickupDropPoints,
-        description: ride.description,
-        status: ride.status
+      const { data, error } = await supabase.from('rides').upsert({
+        id: ridePayload.id,
+        driver_id: ridePayload.driverId,
+        driver_name: ridePayload.driverName,
+        driver_avatar: ridePayload.driverAvatar,
+        driver_rating: ridePayload.driverRating || 5.0,
+        driver_verified: ridePayload.driverVerified !== false,
+        from_location: ridePayload.from,
+        to_location: ridePayload.to,
+        from_coordinates: ridePayload.fromCoordinates || [18.4088, 76.5604],
+        to_coordinates: ridePayload.toCoordinates || [18.5204, 73.8567],
+        date: ridePayload.date,
+        departure_time: ridePayload.departureTime,
+        estimated_arrival_time: ridePayload.estimatedArrivalTime,
+        estimated_duration: ridePayload.estimatedDuration || '4h 30m',
+        vehicle_type: ridePayload.vehicleType || '5-Seater',
+        vehicle_details: ridePayload.vehicleDetails || 'Personal Car',
+        total_seats: parseInt(ridePayload.totalSeats || 5),
+        available_seats: parseInt(ridePayload.availableSeats || 2),
+        total_passenger_seats_allowed: parseInt(ridePayload.totalPassengerSeatsAllowed || ridePayload.availableSeats || 2),
+        shared_cost_per_seat: parseFloat(ridePayload.sharedCostPerSeat || 300),
+        cost_breakdown: ridePayload.costBreakdown || null,
+        cancellation_deposit: parseFloat(ridePayload.cancellationDeposit || 250),
+        deposit_status: ridePayload.depositStatus || 'escrowed',
+        pickup_drop_points: ridePayload.pickupDropPoints || [],
+        description: ridePayload.description || '',
+        status: ridePayload.status || 'published'
       });
 
       if (error) {
         console.warn('Supabase ride save error:', error.message);
+        ridePayload.success = false;
+        ridePayload.error = error.message;
+        return ridePayload;
       }
+      ridePayload.success = true;
+      return ridePayload;
     } catch (err) {
       console.warn('Supabase ride save exception:', err);
+      ridePayload.success = false;
+      ridePayload.error = err.message;
+      return ridePayload;
     }
   }
 
-  return ride;
+  ridePayload.success = true;
+  return ridePayload;
 };
 
 /**
- * Fetches all rides from Supabase and merges with local rides
+ * Fetches all real published rides from Supabase and persistent storage.
+ * Strictly excludes fake/demo/mock rides.
  */
 export const supabaseFetchAllRides = async () => {
-  const localRides = getRealRides();
+  const localRealRides = getRealRides().filter((r) =>
+    ['published', 'active', 'scheduled', 'in_progress'].includes(r.status)
+  );
 
   if (isSupabaseConfigured() && supabase) {
     try {
       const { data, error } = await supabase
         .from('rides')
         .select('*')
+        .in('status', ['published', 'active', 'scheduled', 'in_progress'])
         .order('created_at', { ascending: false });
 
       if (!error && data && data.length > 0) {
@@ -647,23 +678,23 @@ export const supabaseFetchAllRides = async () => {
           estimatedDuration: r.estimated_duration,
           vehicleType: r.vehicle_type,
           vehicleDetails: r.vehicle_details,
-          totalSeats: r.total_seats,
-          availableSeats: r.available_seats,
-          totalPassengerSeatsAllowed: r.total_passenger_seats_allowed,
+          totalSeats: parseInt(r.total_seats || 5),
+          availableSeats: parseInt(r.available_seats || 2),
+          totalPassengerSeatsAllowed: parseInt(r.total_passenger_seats_allowed || 2),
           sharedCostPerSeat: Number(r.shared_cost_per_seat),
           costBreakdown: r.cost_breakdown,
           cancellationDeposit: Number(r.cancellation_deposit),
           depositStatus: r.deposit_status,
           pickupDropPoints: r.pickup_drop_points || [],
           description: r.description,
-          status: r.status,
-          routeOptimized: r.route_optimized || false,
-          routeDeviationDetected: r.route_deviation_detected || false
+          status: r.status || 'published',
+          routeOptimized: Boolean(r.route_optimized),
+          routeDeviationDetected: Boolean(r.route_deviation_detected)
         }));
 
         // Merge without duplicates (Supabase taking precedence)
         const combined = [...mappedSupabaseRides];
-        for (const loc of localRides) {
+        for (const loc of localRealRides) {
           if (!combined.some((c) => c.id === loc.id)) {
             combined.push(loc);
           }
@@ -675,5 +706,5 @@ export const supabaseFetchAllRides = async () => {
     }
   }
 
-  return localRides;
+  return localRealRides;
 };

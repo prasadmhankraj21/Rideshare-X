@@ -138,7 +138,7 @@ create table if not exists public.rides (
   deposit_status text not null default 'escrowed' check (deposit_status in ('escrowed', 'pending_review', 'refunded', 'forfeited')),
   pickup_drop_points jsonb default '[]'::jsonb,
   description text default '',
-  status text not null default 'scheduled' check (status in ('scheduled', 'in_progress', 'completed', 'cancelled')),
+  status text not null default 'published' check (status in ('published', 'active', 'scheduled', 'in_progress', 'completed', 'cancelled')),
   route_optimized boolean default false,
   route_deviation_detected boolean default false,
   active_location jsonb default null,

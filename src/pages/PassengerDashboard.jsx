@@ -35,12 +35,20 @@ export const PassengerDashboard = () => {
     cancelPassengerBooking,
     selectedRideId,
     setSelectedRideId,
-    triggerToast
+    triggerToast,
+    refreshRides
   } = useApp();
 
+  // Fetch latest real published rides on mount
+  React.useEffect(() => {
+    if (refreshRides) {
+      refreshRides();
+    }
+  }, []);
+
   const [activePassengerTab, setActivePassengerTab] = useState('browse'); // 'browse' | 'search' | 'my_bookings' | 'active_ride' | 'history'
-  const [searchFrom, setSearchFrom] = useState('Latur');
-  const [searchTo, setSearchTo] = useState('Pune');
+  const [searchFrom, setSearchFrom] = useState('');
+  const [searchTo, setSearchTo] = useState('');
   const [searchDate, setSearchDate] = useState('');
   const [searchSeatsCount, setSearchSeatsCount] = useState(1);
   const [onlyVerifiedDrivers, setOnlyVerifiedDrivers] = useState(false);
@@ -52,17 +60,23 @@ export const PassengerDashboard = () => {
   const [pickupNotes, setPickupNotes] = useState('');
   const [cancellationPolicyModalOpen, setCancellationPolicyModalOpen] = useState(false);
 
+  const PUBLISHED_STATUSES = ['published', 'active', 'scheduled', 'in_progress'];
+
   // Filter rides for browse/search
   const filteredRides = rides.filter((r) => {
-    if (r.status !== 'scheduled' && r.status !== 'in_progress') return false;
+    if (!PUBLISHED_STATUSES.includes(r.status)) return false;
 
-    if (searchFrom && !r.from.toLowerCase().includes(searchFrom.toLowerCase())) {
+    const cleanFrom = searchFrom?.trim().toLowerCase();
+    const cleanTo = searchTo?.trim().toLowerCase();
+    const cleanDate = searchDate?.trim();
+
+    if (cleanFrom && !r.from?.toLowerCase().includes(cleanFrom)) {
       return false;
     }
-    if (searchTo && !r.to.toLowerCase().includes(searchTo.toLowerCase())) {
+    if (cleanTo && !r.to?.toLowerCase().includes(cleanTo)) {
       return false;
     }
-    if (searchDate && r.date !== searchDate && r.date !== 'Today') {
+    if (cleanDate && r.date?.trim() !== cleanDate && r.date !== 'Today') {
       return false;
     }
     if (onlyVerifiedDrivers && !r.driverVerified) {

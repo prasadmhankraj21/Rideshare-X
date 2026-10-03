@@ -29,8 +29,16 @@ export const SearchRidesPage = () => {
     triggerToast,
     globalSearch,
     setGlobalSearch,
-    setActiveTab
+    setActiveTab,
+    refreshRides
   } = useApp();
+
+  // Fetch latest real published rides on mount
+  React.useEffect(() => {
+    if (refreshRides) {
+      refreshRides();
+    }
+  }, []);
 
   // Search filter states (synced with globalSearch if present)
   const [searchFrom, setSearchFrom] = useState(globalSearch?.from || '');
@@ -58,21 +66,28 @@ export const SearchRidesPage = () => {
   const POPULAR_ORIGINS = ['Latur', 'Pune', 'Mumbai', 'Bengaluru'];
   const POPULAR_DESTINATIONS = ['Pune', 'Mumbai', 'Nashik', 'Mysuru', 'Solapur'];
 
+  // Published/active status values supported in database
+  const PUBLISHED_STATUSES = ['published', 'active', 'scheduled', 'in_progress'];
+
   // Filter rides based on search criteria
   const availableRides = rides.filter((r) => {
-    // Show scheduled and in-progress rides
-    if (r.status !== 'scheduled' && r.status !== 'in_progress') return false;
+    // Show only real published/active rides
+    if (!PUBLISHED_STATUSES.includes(r.status)) return false;
 
-    if (searchFrom && !r.from.toLowerCase().includes(searchFrom.toLowerCase())) {
+    const cleanFrom = searchFrom?.trim().toLowerCase();
+    const cleanTo = searchTo?.trim().toLowerCase();
+    const cleanDate = searchDate?.trim();
+
+    if (cleanFrom && !r.from?.toLowerCase().includes(cleanFrom)) {
       return false;
     }
-    if (searchTo && !r.to.toLowerCase().includes(searchTo.toLowerCase())) {
+    if (cleanTo && !r.to?.toLowerCase().includes(cleanTo)) {
       return false;
     }
-    if (searchDate && r.date !== searchDate && r.date !== 'Today') {
+    if (cleanDate && r.date?.trim() !== cleanDate && r.date !== 'Today') {
       return false;
     }
-    if (searchSeats && r.availableSeats < searchSeats) {
+    if (searchSeats && Number(r.availableSeats) < Number(searchSeats)) {
       return false;
     }
     if (onlyVerified && !r.driverVerified) {

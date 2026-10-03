@@ -76,18 +76,28 @@ export const AppProvider = ({ children }) => {
   // Exactly one permanent designated admin account
   const [admin] = useState(DESIGNATED_ADMIN);
 
-  // Load rides merged with real driver rides
+  // Real published rides from Supabase / persistent storage (strictly no fake/mock rides)
   const [rides, setRides] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.RIDES);
-    const raw = saved ? JSON.parse(saved) : INITIAL_RIDES;
-    const realRides = getRealRides();
-    const combined = [...realRides];
-    for (const r of raw) {
-      if (!combined.some(c => c.id === r.id)) {
-        combined.push(r);
-      }
+    const realRides = getRealRides().filter((r) =>
+      ['published', 'active', 'scheduled', 'in_progress'].includes(r.status)
+    );
+    if (realRides && realRides.length > 0) {
+      return realRides;
     }
-    return combined;
+    const saved = localStorage.getItem(STORAGE_KEYS.RIDES);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const nonDemo = parsed.filter(
+          (r) =>
+            !r.id.startsWith('ride-10') &&
+            r.driverId !== 'drv-1' &&
+            ['published', 'active', 'scheduled', 'in_progress'].includes(r.status)
+        );
+        if (nonDemo.length > 0) return nonDemo;
+      } catch {}
+    }
+    return [];
   });
 
   const [bookings, setBookings] = useState(() => {
@@ -189,23 +199,27 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTab);
   }, [activeTab]);
 
-  // Sync rides from Supabase if configured
-  useEffect(() => {
-    if (isSupabaseConfigured()) {
-      supabaseFetchAllRides().then(remoteRides => {
-        if (remoteRides && remoteRides.length > 0) {
-          setRides(prev => {
-            const combined = [...remoteRides];
-            for (const r of prev) {
-              if (!combined.some(c => c.id === r.id)) {
-                combined.push(r);
-              }
-            }
-            return combined;
-          });
-        }
-      }).catch(() => {});
+  // Refresh real rides from Supabase & persistent storage
+  const refreshRides = async () => {
+    try {
+      const remoteRides = await supabaseFetchAllRides();
+      if (remoteRides) {
+        setRides(remoteRides);
+        return remoteRides;
+      }
+    } catch (e) {
+      console.warn('Error refreshing rides:', e);
     }
+    const local = getRealRides().filter((r) =>
+      ['published', 'active', 'scheduled', 'in_progress'].includes(r.status)
+    );
+    setRides(local);
+    return local;
+  };
+
+  // Sync real published rides on mount
+  useEffect(() => {
+    refreshRides();
   }, []);
 
   // Derived current user object - strictly isolated, NO demo fallback for logged in users!
@@ -565,7 +579,7 @@ export const AppProvider = ({ children }) => {
   };
 
   // Create Ride (Driver only)
-  const createRide = (ridePayload) => {
+  const createRide = async (ridePayload) => {
     if (!currentUser) {
       triggerToast('Authentication Required', 'Please sign in to publish a ride.', 'error');
       return null;
@@ -579,13 +593,13 @@ export const AppProvider = ({ children }) => {
       driverAvatar: currentUser.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser.name)}`,
       driverRating: currentUser.rating || 5.0,
       driverVerified: true,
-      from: ridePayload.from,
-      to: ridePayload.to,
+      from: ridePayload.from?.trim(),
+      to: ridePayload.to?.trim(),
       fromCoordinates: ridePayload.fromCoordinates || [18.4088, 76.5604],
       toCoordinates: ridePayload.toCoordinates || [18.5204, 73.8567],
-      date: ridePayload.date,
-      departureTime: ridePayload.departureTime,
-      estimatedArrivalTime: ridePayload.estimatedArrivalTime,
+      date: ridePayload.date?.trim(),
+      departureTime: ridePayload.departureTime?.trim(),
+      estimatedArrivalTime: ridePayload.estimatedArrivalTime?.trim(),
       estimatedDuration: ridePayload.estimatedDuration || '4h 30m',
       vehicleType: ridePayload.vehicleType || '5-Seater',
       vehicleDetails: currentUser.vehicle
@@ -607,14 +621,16 @@ export const AppProvider = ({ children }) => {
         { type: 'dropoff', point: `${ridePayload.to} Main Terminal`, time: ridePayload.estimatedArrivalTime }
       ],
       description: ridePayload.description || 'Travelling on this route. Sharing seats to split fuel and highway tolls.',
-      status: 'scheduled',
+      status: 'published',
       routeOptimized: false,
       routeDeviationDetected: false,
       activeLocation: null
     };
 
-    setRides(prev => [newRide, ...prev]);
-    supabaseSaveRide(newRide);
+    // Await database persistence
+    await supabaseSaveRide(newRide);
+
+    setRides(prev => [newRide, ...prev.filter(r => r.id !== newRide.id)]);
 
     // Notification
     const newNotif = {
@@ -622,14 +638,14 @@ export const AppProvider = ({ children }) => {
       targetUserId: currentUser.id,
       role: 'driver',
       title: 'Ride Published Successfully! 🚗',
-      message: `Your ride from ${newRide.from} to ${newRide.to} with ${newRide.availableSeats} available seats is now live. Refundable deposit of ₹${newRide.cancellationDeposit} held in escrow.`,
+      message: `Your ride from ${newRide.from} to ${newRide.to} with ${newRide.availableSeats} available seats is now live in Supabase. Refundable deposit of ₹${newRide.cancellationDeposit} held in escrow.`,
       time: 'Just now',
       type: 'ride_published',
       read: false
     };
 
     setNotifications(prev => [newNotif, ...prev]);
-    triggerToast('Ride Published', `Ride from ${newRide.from} to ${newRide.to} is now open for bookings!`, 'success');
+    triggerToast('Ride Published', `Ride from ${newRide.from} to ${newRide.to} is now live and searchable!`, 'success');
     return newRideId;
   };
 
@@ -1122,7 +1138,8 @@ export const AppProvider = ({ children }) => {
         setupAdminPassword,
         isSupabaseConfigured,
         globalSearch,
-        setGlobalSearch
+        setGlobalSearch,
+        refreshRides
       }}
     >
       {children}

@@ -73,7 +73,7 @@ export const DriverDashboard = () => {
 
   // Filter rides for this driver
   const driverRides = rides.filter((r) => r.driverId === currentUser?.id);
-  const scheduledRides = driverRides.filter((r) => r.status === 'scheduled');
+  const scheduledRides = driverRides.filter((r) => r.status === 'scheduled' || r.status === 'published' || r.status === 'active');
   const inProgressRides = driverRides.filter((r) => r.status === 'in_progress');
   const completedRides = driverRides.filter((r) => r.status === 'completed');
 
@@ -99,7 +99,7 @@ export const DriverDashboard = () => {
     setActiveDriverTab('create_ride');
   };
 
-  const handlePublishRide = (e) => {
+  const handlePublishRide = async (e) => {
     e.preventDefault();
     if (!isVerified) {
       setVerificationModalOpen(true);
@@ -111,8 +111,9 @@ export const DriverDashboard = () => {
       return;
     }
 
-    const newId = createRide({
+    await createRide({
       ...rideForm,
+      status: 'published',
       fromCoordinates: [18.4088, 76.5604],
       toCoordinates: [18.5204, 73.8567],
       pickupDropPoints: [
