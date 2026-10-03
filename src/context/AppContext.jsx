@@ -1410,10 +1410,16 @@ export const AppProvider = ({ children }) => {
 
     const updated = await updateBookingCoordination(bookingId, {
       boardingVerified: true,
+      boardingVerifiedAt: new Date().toISOString(),
       newMessage: newMsg,
       toastTitle: 'Boarding Verified! ✅',
-      toastMessage: `${booking.passengerName} verified. You can now start the ride.`
+      toastMessage: `${booking.passengerName} verified. Starting live highway route navigation!`
     });
+
+    // Auto-start ride so GPS telemetry and live route tracking start immediately
+    if (booking.rideId) {
+      await startRide(booking.rideId);
+    }
 
     return { success: true, booking: updated };
   };

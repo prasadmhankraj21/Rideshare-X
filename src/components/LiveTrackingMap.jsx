@@ -20,7 +20,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { SOSModal } from './SOSModal';
 
-export const LiveTrackingMap = ({ ride, isDriverView = false }) => {
+export const LiveTrackingMap = ({ ride, isDriverView = false, onReturnToDashboard }) => {
   const {
     startRide,
     endRide,
@@ -96,6 +96,36 @@ export const LiveTrackingMap = ({ ride, isDriverView = false }) => {
 
   return (
     <div className="space-y-6">
+      {/* Ride Completed Banner */}
+      {isCompleted && (
+        <div className="bg-emerald-50 border-2 border-emerald-400 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-300 shadow-md">
+          <div className="flex items-start gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="text-base font-black text-emerald-950 flex items-center gap-2">
+                Trip Safely Completed! 🎉
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-200 text-emerald-900 border border-emerald-300">
+                  Destination Reached
+                </span>
+              </h4>
+              <p className="text-xs text-emerald-800 mt-1 leading-relaxed">
+                This trip for <strong>{ride.from} → {ride.to}</strong> has arrived and completed successfully.
+              </p>
+            </div>
+          </div>
+          {onReturnToDashboard && (
+            <button
+              onClick={onReturnToDashboard}
+              className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-2xl shadow-md transition shrink-0"
+            >
+              Return to Normal Dashboard
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Route Deviation Safety Alert Banner */}
       {routeDeviationTriggered && isRideActive && (
         <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-300">
@@ -458,9 +488,19 @@ export const LiveTrackingMap = ({ ride, isDriverView = false }) => {
               )}
 
               {isCompleted && (
-                <div className="px-4 py-2 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4" />
-                  Ride Completed & Deposit Refunded
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="px-4 py-2 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Ride Completed
+                  </div>
+                  {onReturnToDashboard && (
+                    <button
+                      onClick={onReturnToDashboard}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-md transition"
+                    >
+                      Return to Normal Dashboard
+                    </button>
+                  )}
                 </div>
               )}
             </div>

@@ -88,6 +88,34 @@ export const RideCoordinationModal = ({
   const markerRef = useRef(null);
   const chatBottomRef = useRef(null);
 
+  // Auto-close completed ride modal after short delay
+  useEffect(() => {
+    if (isOpen && (booking?.status === 'completed' || ride?.status === 'completed')) {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, booking?.status, ride?.status, onClose]);
+
+  // Auto-transition passenger to Live Route when boarding is verified
+  const passengerRedirectedRef = useRef(false);
+  useEffect(() => {
+    if (
+      isOpen &&
+      !isDriverView &&
+      booking?.boardingVerified &&
+      activeTab === 'pass_map' &&
+      !passengerRedirectedRef.current
+    ) {
+      const timer = setTimeout(() => {
+        passengerRedirectedRef.current = true;
+        handleViewLiveRoute();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isDriverView, booking?.boardingVerified, activeTab]);
+
   // Derive initial pickup coordinates
   const currentPickupSpot = booking?.exactPickupSpot || {
     address: booking?.pickupPoint || `${booking?.from || 'City'} Center`,
@@ -260,6 +288,10 @@ export const RideCoordinationModal = ({
     setVerifyingPin(false);
     if (res.success) {
       setPinInput('');
+      triggerToast('Passenger Verified! ✅', 'Passenger verified and boarded. Starting live highway route navigation...', 'success');
+      setTimeout(() => {
+        handleViewLiveRoute();
+      }, 1000);
     }
   };
 
@@ -742,53 +774,95 @@ export const RideCoordinationModal = ({
           {/* PASSENGER VIEW: TAB 1 - BOARDING PIN AND INTERACTIVE MAP TOGETHER ON ONE SCREEN! */}
           {!isDriverView && activeTab === 'pass_map' && (
             <div className="space-y-6">
-              {/* Section 1: Passenger Boarding Pass Card with 4-Digit PIN */}
-              <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-teal-700 rounded-3xl p-6 text-white shadow-xl space-y-4">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="text-[10px] uppercase font-black tracking-widest text-emerald-200">
-                    Passenger Boarding Pass
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white text-xs font-bold">
-                    {booking.from} → {booking.to}
-                  </span>
-                </div>
-
-                <div className="text-center py-2 space-y-2">
-                  <span className="text-xs text-emerald-100 font-semibold block">
-                    Show or tell this 4-Digit PIN to Driver {otherPartyName} upon boarding:
-                  </span>
-                  <div className="inline-flex items-center gap-3 bg-slate-950/40 px-6 py-3 rounded-2xl border-2 border-white/30 backdrop-blur-md">
-                    <KeyRound className="w-7 h-7 text-amber-300" />
-                    <span className="text-3xl sm:text-4xl font-mono font-black tracking-widest text-amber-300">
-                      {booking.boardingPin || '8429'}
+              {/* Section 1: Passenger Boarding Pass Card or Verified Success State */}
+              {!booking.boardingVerified ? (
+                <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-teal-700 rounded-3xl p-6 text-white shadow-xl space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-[10px] uppercase font-black tracking-widest text-emerald-200">
+                      Passenger Boarding Pass
                     </span>
-                    <button
-                      type="button"
-                      onClick={handleCopyPin}
-                      className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition ml-1"
-                      title="Copy Boarding PIN"
-                    >
-                      {copiedPin ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
-                    </button>
+                    <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white text-xs font-bold">
+                      {booking.from} → {booking.to}
+                    </span>
                   </div>
-                  <p className="text-[11px] text-emerald-200 max-w-md mx-auto">
-                    Driver will enter this PIN to verify that you are the confirmed passenger before starting the ride.
-                  </p>
-                </div>
 
-                <div className="bg-white/10 rounded-2xl p-4 border border-white/20 space-y-2 text-xs">
-                  <div className="font-bold text-white flex items-center gap-1.5">
-                    <Car className="w-4 h-4 text-emerald-300" />
-                    Verify Your Car & Driver:
+                  <div className="text-center py-2 space-y-2">
+                    <span className="text-xs text-emerald-100 font-semibold block">
+                      Show or tell this 4-Digit PIN to Driver {otherPartyName} upon boarding:
+                    </span>
+                    <div className="inline-flex items-center gap-3 bg-slate-950/40 px-6 py-3 rounded-2xl border-2 border-white/30 backdrop-blur-md">
+                      <KeyRound className="w-7 h-7 text-amber-300" />
+                      <span className="text-3xl sm:text-4xl font-mono font-black tracking-widest text-amber-300">
+                        {booking.boardingPin || '8429'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyPin}
+                        className="p-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white transition ml-1"
+                        title="Copy Boarding PIN"
+                      >
+                        {copiedPin ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-emerald-200 max-w-md mx-auto">
+                      Driver will enter this PIN to verify that you are the confirmed passenger before starting the ride.
+                    </p>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-emerald-100">
-                    <div>Driver: <strong className="text-white">{otherPartyName}</strong></div>
-                    <div>Phone: <strong className="text-white">{otherPartyPhone}</strong></div>
-                    <div>Car: <strong className="text-white">{ride?.vehicleDetails || 'Maruti Grand Vitara (White) • MH-12-SG-1983'}</strong></div>
-                    <div>Pickup: <strong className="text-white">{booking.exactPickupSpot?.address || booking.pickupPoint}</strong></div>
+
+                  <div className="bg-white/10 rounded-2xl p-4 border border-white/20 space-y-2 text-xs">
+                    <div className="font-bold text-white flex items-center gap-1.5">
+                      <Car className="w-4 h-4 text-emerald-300" />
+                      Verify Your Car & Driver:
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-emerald-100">
+                      <div>Driver: <strong className="text-white">{otherPartyName}</strong></div>
+                      <div>Phone: <strong className="text-white">{otherPartyPhone}</strong></div>
+                      <div>Car: <strong className="text-white">{ride?.vehicleDetails || 'Maruti Grand Vitara (White) • MH-12-SG-1983'}</strong></div>
+                      <div>Pickup: <strong className="text-white">{booking.exactPickupSpot?.address || booking.pickupPoint}</strong></div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                /* Boarding Verified State */
+                <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 rounded-3xl p-6 text-white shadow-xl space-y-4 animate-in fade-in">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-[10px] uppercase font-black tracking-widest text-emerald-200 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+                      Boarding Verified by Driver
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/30 text-white text-xs font-bold border border-emerald-400/40">
+                      Boarded & Matched ✓
+                    </span>
+                  </div>
+
+                  <div className="text-center py-3 space-y-3">
+                    <div className="w-14 h-14 rounded-2xl bg-white/20 text-white flex items-center justify-center mx-auto shadow-inner">
+                      <Navigation className="w-7 h-7 text-emerald-200 animate-bounce" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg sm:text-xl font-black">You are Safely On Board! 🎉</h3>
+                      <p className="text-xs text-emerald-100 mt-1 max-w-md mx-auto">
+                        Driver <strong>{otherPartyName}</strong> has verified your Boarding PIN. Your journey has started on the highway route!
+                      </p>
+                    </div>
+
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handleViewLiveRoute}
+                        className="w-full sm:w-auto px-7 py-3.5 bg-white hover:bg-emerald-50 active:scale-95 text-emerald-900 font-black text-sm rounded-2xl shadow-xl flex items-center justify-center gap-2.5 transition"
+                      >
+                        <Navigation className="w-5 h-5 text-emerald-600" />
+                        See Route & Live Highway Navigation 🚗💨
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-emerald-200">
+                      Opening highway route map automatically...
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Verification Status Card */}
               <div className={`p-4 rounded-2xl border-2 transition ${
@@ -804,28 +878,22 @@ export const RideCoordinationModal = ({
                       </div>
                       <div>
                         <h4 className="text-xs font-black text-emerald-950">
-                          Boarding Verified by Driver! ✅
+                          Boarding Verified & Highway Trip Active! ✅
                         </h4>
                         <p className="text-[11px] text-emerald-800">
-                          You and driver {otherPartyName} have mutually verified boarding.
+                          You and driver {otherPartyName} are matched. GPS highway tracking is active.
                         </p>
                       </div>
                     </div>
 
-                    {ride?.status === 'in_progress' ? (
-                      <button
-                        type="button"
-                        onClick={handleViewLiveRoute}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition shrink-0"
-                      >
-                        <Navigation className="w-3.5 h-3.5" />
-                        View Live Route Map
-                      </button>
-                    ) : (
-                      <span className="text-xs text-emerald-800 font-medium">
-                        Driver will now start the trip. Live route map will open automatically.
-                      </span>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleViewLiveRoute}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition shrink-0"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      See Route
+                    </button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">

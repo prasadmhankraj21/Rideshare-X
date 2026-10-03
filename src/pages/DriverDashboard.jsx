@@ -123,8 +123,17 @@ export const DriverDashboard = () => {
         setActiveDriverTab('overview');
       }
     }
+
+    // Also check if current active ride was marked completed by admin or driver
+    if (currentActiveRide && currentActiveRide.status === 'completed') {
+      setCoordinationModalOpen(false);
+      if (activeDriverTab === 'active_ride') {
+        setActiveDriverTab('overview');
+      }
+    }
+
     prevInProgressCount.current = inProgressRides.length;
-  }, [inProgressRides.length, activeDriverTab]);
+  }, [inProgressRides.length, activeDriverTab, currentActiveRide?.status]);
 
   // If currently opened coordination booking is completed or cancelled, auto-close modal
   React.useEffect(() => {
@@ -439,7 +448,11 @@ export const DriverDashboard = () => {
                   Full GPS Screen <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
-              <LiveTrackingMap ride={currentActiveRide} isDriverView={true} />
+              <LiveTrackingMap
+                ride={currentActiveRide}
+                isDriverView={true}
+                onReturnToDashboard={() => setActiveDriverTab('overview')}
+              />
             </div>
           )}
 
@@ -1075,7 +1088,11 @@ export const DriverDashboard = () => {
               </p>
             </div>
           </div>
-          <LiveTrackingMap ride={currentActiveRide} isDriverView={true} />
+          <LiveTrackingMap
+            ride={currentActiveRide}
+            isDriverView={true}
+            onReturnToDashboard={() => setActiveDriverTab('overview')}
+          />
         </div>
       )}
 
