@@ -13,6 +13,7 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  deleteDoc,
   query,
   where,
   onSnapshot,
@@ -22,10 +23,13 @@ import { firebaseConfig, isFirebaseConfigured } from './firebaseConfig.js';
 import {
   getRealUsers,
   saveRealUser,
+  deleteRealUser,
   getRealRides,
   saveRealRide,
+  deleteRealRide,
   getRealBookings,
-  saveRealBooking
+  saveRealBooking,
+  deleteRealBooking
 } from './supabaseClient.js';
 
 // Initialize Firebase App safely if configured
@@ -292,17 +296,13 @@ export const firebaseSaveRide = async (ride) => {
 };
 
 /**
- * Fetch all active/published rides from Cloud Firestore
+ * Fetch all rides from Cloud Firestore (including active, scheduled, in_progress, and completed)
  */
 export const firebaseFetchAllRides = async () => {
   if (isFirebaseConfigured() && db) {
     try {
       const ridesCol = collection(db, 'rides');
-      const q = query(
-        ridesCol,
-        where('status', 'in', ['published', 'active', 'scheduled', 'in_progress'])
-      );
-      const snapshot = await getDocs(q);
+      const snapshot = await getDocs(ridesCol);
       const remoteRides = [];
       snapshot.forEach((docSnap) => {
         remoteRides.push(docSnap.data());
@@ -319,14 +319,12 @@ export const firebaseFetchAllRides = async () => {
   }
 
   // Return locally cached real rides
-  return getRealRides().filter((r) =>
-    ['published', 'active', 'scheduled', 'in_progress'].includes(r.status)
-  );
+  return getRealRides();
 };
 
 /**
  * Real-time listener for rides collection
- * Whenever ANY device publishes or updates a ride, callback is instantly invoked!
+ * Whenever ANY device publishes, updates, or completes a ride, callback is instantly invoked!
  */
 export const subscribeToRealtimeRides = (callback) => {
   if (!isFirebaseConfigured() || !db) {
@@ -335,13 +333,9 @@ export const subscribeToRealtimeRides = (callback) => {
 
   try {
     const ridesCol = collection(db, 'rides');
-    const q = query(
-      ridesCol,
-      where('status', 'in', ['published', 'active', 'scheduled', 'in_progress'])
-    );
 
     const unsubscribe = onSnapshot(
-      q,
+      ridesCol,
       (snapshot) => {
         const liveRides = [];
         snapshot.forEach((docSnap) => {
@@ -360,6 +354,51 @@ export const subscribeToRealtimeRides = (callback) => {
     console.warn('[Firebase Subscribe Error]:', err);
     return () => {};
   }
+};
+
+/**
+ * Delete Ride from Cloud Firestore & local cache
+ */
+export const firebaseDeleteRide = async (rideId) => {
+  if (isFirebaseConfigured() && db) {
+    try {
+      await deleteDoc(doc(db, 'rides', rideId));
+    } catch (err) {
+      console.warn('[Firebase Delete Ride]', err);
+    }
+  }
+  deleteRealRide(rideId);
+  return true;
+};
+
+/**
+ * Delete Booking from Cloud Firestore & local cache
+ */
+export const firebaseDeleteBooking = async (bookingId) => {
+  if (isFirebaseConfigured() && db) {
+    try {
+      await deleteDoc(doc(db, 'bookings', bookingId));
+    } catch (err) {
+      console.warn('[Firebase Delete Booking]', err);
+    }
+  }
+  deleteRealBooking(bookingId);
+  return true;
+};
+
+/**
+ * Delete User (Driver or Passenger) from Cloud Firestore & local cache
+ */
+export const firebaseDeleteUser = async (userId) => {
+  if (isFirebaseConfigured() && db) {
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+    } catch (err) {
+      console.warn('[Firebase Delete User]', err);
+    }
+  }
+  deleteRealUser(userId);
+  return true;
 };
 
 /**

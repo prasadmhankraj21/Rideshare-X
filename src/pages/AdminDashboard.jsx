@@ -18,7 +18,12 @@ import {
   AlertOctagon,
   Scale,
   Lock,
-  KeyRound
+  KeyRound,
+  Trash2,
+  UserX,
+  UserMinus,
+  Navigation,
+  Flag
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -33,6 +38,12 @@ export const AdminDashboard = () => {
     rejectDriverVerification,
     requestReverification,
     resolveCancellationDeposit,
+    adminCompleteRide,
+    adminRemoveDriver,
+    adminRemovePassenger,
+    adminCancelBooking,
+    adminCancelRide,
+    adminDeleteRidePermanently,
     triggerToast,
     logout,
     adminConfig,
@@ -52,6 +63,16 @@ export const AdminDashboard = () => {
   const [adminNotes, setAdminNotes] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [newMasterPassword, setNewMasterPassword] = useState('');
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('all'); // 'all' | 'driver' | 'passenger'
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    confirmVariant: 'danger',
+    onConfirm: null
+  });
 
   // Dashboard Stats Calculations
   const totalDrivers = drivers.length;
@@ -280,6 +301,81 @@ export const AdminDashboard = () => {
               <p className="text-xs text-slate-500 mt-1">Total trips cancelled with logged reasons</p>
             </div>
           </div>
+
+          {/* Active Rides in Progress & Immediate Completion Section */}
+          {activeRidesCount > 0 && (
+            <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border-2 border-emerald-400/40 rounded-3xl p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-sm">
+                    <Navigation className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                      Live Highway Rides in Progress ({activeRidesCount})
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Real-time active carpools. Admin can complete any ride here to release deposits and return both parties to normal dashboard.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {rides
+                  .filter((r) => r.status === 'in_progress')
+                  .map((ride) => {
+                    const rideBookings = bookings.filter((b) => b.rideId === ride.id && b.status === 'confirmed');
+                    return (
+                      <div
+                        key={ride.id}
+                        className="bg-white rounded-2xl p-4 border border-emerald-200 shadow-sm flex flex-col justify-between gap-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-black text-slate-900">
+                              {ride.from} → {ride.to}
+                            </div>
+                            <div className="text-xs text-slate-600 mt-0.5">
+                              Driver: <strong>{ride.driverName}</strong> ({ride.vehicleDetails})
+                            </div>
+                            <div className="text-[11px] text-teal-700 font-semibold mt-1">
+                              👥 {rideBookings.length} confirmed co-traveller(s) on board
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 shrink-0">
+                            In Transit
+                          </span>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                          <span className="text-xs text-slate-500">
+                            Fare: ₹{ride.sharedCostPerSeat} / seat
+                          </span>
+                          <button
+                            onClick={() => {
+                              setConfirmModal({
+                                isOpen: true,
+                                title: 'Complete Ride Now?',
+                                message: `Mark ride "${ride.from} → ${ride.to}" as Completed? This will finish the journey, refund driver deposit (₹${ride.cancellationDeposit || 250}), mark passenger bookings as completed, and restore both parties to normal dashboard.`,
+                                confirmText: 'Yes, Complete Ride',
+                                confirmVariant: 'success',
+                                onConfirm: () => adminCompleteRide(ride.id)
+                              });
+                            }}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-sm transition flex items-center gap-1.5"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            Complete Ride
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -401,7 +497,55 @@ export const AdminDashboard = () => {
       {/* TAB 3: USER MANAGEMENT */}
       {adminTab === 'users' && (
         <div className="space-y-6">
-          <h3 className="text-xl font-bold text-slate-900">User Management</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900">User Management</h3>
+              <p className="text-xs text-slate-500">
+                Oversee, search, and remove driver or passenger accounts from platform
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name, phone, email..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="pl-8 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none w-56"
+                />
+              </div>
+
+              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                <button
+                  onClick={() => setUserRoleFilter('all')}
+                  className={`px-3 py-1 rounded-lg transition ${
+                    userRoleFilter === 'all' ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All ({drivers.length + passengers.length})
+                </button>
+                <button
+                  onClick={() => setUserRoleFilter('driver')}
+                  className={`px-3 py-1 rounded-lg transition ${
+                    userRoleFilter === 'driver' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Drivers ({drivers.length})
+                </button>
+                <button
+                  onClick={() => setUserRoleFilter('passenger')}
+                  className={`px-3 py-1 rounded-lg transition ${
+                    userRoleFilter === 'passenger' ? 'bg-white text-teal-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Passengers ({passengers.length})
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
@@ -410,56 +554,122 @@ export const AdminDashboard = () => {
                   <th className="py-3 px-4">Role</th>
                   <th className="py-3 px-4">Contact</th>
                   <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Action</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {drivers.map((drv) => (
-                  <tr key={drv.id} className="hover:bg-slate-50/50">
-                    <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
-                      <img src={drv.avatar} className="w-7 h-7 rounded-xl object-cover" />
-                      <span>{drv.name}</span>
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-emerald-700">Driver / Car Owner</td>
-                    <td className="py-3 px-4 text-slate-600">{drv.phone}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                        {drv.verificationStatus}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => triggerToast('Account Status', `${drv.name} account active.`, 'info')}
-                        className="text-xs text-indigo-600 font-semibold hover:underline"
-                      >
-                        Manage
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {passengers.map((psg) => (
-                  <tr key={psg.id} className="hover:bg-slate-50/50">
-                    <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
-                      <img src={psg.avatar} className="w-7 h-7 rounded-xl object-cover" />
-                      <span>{psg.name}</span>
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-teal-700">Co-Traveller</td>
-                    <td className="py-3 px-4 text-slate-600">{psg.phone}</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-bold">
-                        Active
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => triggerToast('Account Status', `${psg.name} account active.`, 'info')}
-                        className="text-xs text-indigo-600 font-semibold hover:underline"
-                      >
-                        Manage
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {(userRoleFilter === 'all' || userRoleFilter === 'driver') &&
+                  drivers
+                    .filter((d) => {
+                      if (!userSearch.trim()) return true;
+                      const q = userSearch.toLowerCase();
+                      return (
+                        d.name?.toLowerCase().includes(q) ||
+                        d.email?.toLowerCase().includes(q) ||
+                        d.phone?.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((drv) => (
+                      <tr key={drv.id} className="hover:bg-slate-50/50">
+                        <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
+                          <img src={drv.avatar} className="w-8 h-8 rounded-xl object-cover" />
+                          <div>
+                            <div>{drv.name}</div>
+                            <div className="text-[10px] text-slate-400 font-normal">{drv.email}</div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-emerald-700">
+                          <div>Driver / Car Owner</div>
+                          {drv.vehicle && (
+                            <div className="text-[10px] text-slate-500 font-mono">
+                              {drv.vehicle.make} {drv.vehicle.model} ({drv.vehicle.plateNumber})
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600">{drv.phone}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              drv.verificationStatus === 'verified'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : drv.verificationStatus === 'pending'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {drv.verificationStatus}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => {
+                              setConfirmModal({
+                                isOpen: true,
+                                title: `Remove Driver ${drv.name}?`,
+                                message: `Are you sure you want to permanently remove driver "${drv.name}" (${drv.email})? Any scheduled or active rides by this driver will be cancelled.`,
+                                confirmText: 'Yes, Remove Driver',
+                                confirmVariant: 'danger',
+                                onConfirm: () => adminRemoveDriver(drv.id)
+                              });
+                            }}
+                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl transition inline-flex items-center gap-1.5 shadow-2xs"
+                            title="Remove Driver Account"
+                          >
+                            <UserX className="w-3.5 h-3.5" />
+                            Remove Driver
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+
+                {(userRoleFilter === 'all' || userRoleFilter === 'passenger') &&
+                  passengers
+                    .filter((p) => {
+                      if (!userSearch.trim()) return true;
+                      const q = userSearch.toLowerCase();
+                      return (
+                        p.name?.toLowerCase().includes(q) ||
+                        p.email?.toLowerCase().includes(q) ||
+                        p.phone?.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((psg) => (
+                      <tr key={psg.id} className="hover:bg-slate-50/50">
+                        <td className="py-3 px-4 font-bold text-slate-900 flex items-center gap-2">
+                          <img src={psg.avatar} className="w-8 h-8 rounded-xl object-cover" />
+                          <div>
+                            <div>{psg.name}</div>
+                            <div className="text-[10px] text-slate-400 font-normal">{psg.email}</div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-teal-700">Co-Traveller / Passenger</td>
+                        <td className="py-3 px-4 text-slate-600">{psg.phone}</td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-bold">
+                            Active
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => {
+                              setConfirmModal({
+                                isOpen: true,
+                                title: `Remove Passenger ${psg.name}?`,
+                                message: `Are you sure you want to permanently remove passenger "${psg.name}" (${psg.email || psg.phone})? Any active bookings by this passenger will be cancelled and ride seats will be restored.`,
+                                confirmText: 'Yes, Remove Passenger',
+                                confirmVariant: 'danger',
+                                onConfirm: () => adminRemovePassenger(psg.id)
+                              });
+                            }}
+                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl transition inline-flex items-center gap-1.5 shadow-2xs"
+                            title="Remove Passenger Account"
+                          >
+                            <UserX className="w-3.5 h-3.5" />
+                            Remove Passenger
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
               </tbody>
             </table>
           </div>
@@ -469,7 +679,18 @@ export const AdminDashboard = () => {
       {/* TAB 4: RIDE MANAGEMENT */}
       {adminTab === 'rides' && (
         <div className="space-y-6">
-          <h3 className="text-xl font-bold text-slate-900">All Published Rides</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900">All Published Rides</h3>
+              <p className="text-xs text-slate-500">
+                Manage, complete, or cancel rides across the platform with one click
+              </p>
+            </div>
+            <div className="text-xs text-slate-500 font-semibold">
+              Total: {rides.length} rides ({rides.filter(r => r.status === 'completed').length} completed)
+            </div>
+          </div>
+
           <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
@@ -481,6 +702,7 @@ export const AdminDashboard = () => {
                   <th className="py-3 px-4">Shared Cost</th>
                   <th className="py-3 px-4">Deposit</th>
                   <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -498,7 +720,7 @@ export const AdminDashboard = () => {
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           r.status === 'in_progress'
-                            ? 'bg-emerald-500 text-slate-950'
+                            ? 'bg-emerald-500 text-slate-950 font-black'
                             : r.status === 'completed'
                             ? 'bg-slate-200 text-slate-800'
                             : r.status === 'cancelled'
@@ -508,6 +730,69 @@ export const AdminDashboard = () => {
                       >
                         {r.status}
                       </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {r.status !== 'completed' && r.status !== 'cancelled' && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setConfirmModal({
+                                  isOpen: true,
+                                  title: `Complete Ride: ${r.from} → ${r.to}?`,
+                                  message: `Are you sure you want to mark this ride as Completed? This will finish the journey, refund driver deposit (₹${r.cancellationDeposit || 250}), mark passenger bookings as completed, and restore both parties to normal dashboard.`,
+                                  confirmText: 'Yes, Complete Ride',
+                                  confirmVariant: 'success',
+                                  onConfirm: () => adminCompleteRide(r.id)
+                                });
+                              }}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-lg transition inline-flex items-center gap-1 text-[11px] shadow-2xs"
+                              title="Mark Ride as Completed"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Complete Ride
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setConfirmModal({
+                                  isOpen: true,
+                                  title: `Cancel Ride: ${r.from} → ${r.to}?`,
+                                  message: `Are you sure you want to cancel this ride? All passenger bookings on this ride will be cancelled.`,
+                                  confirmText: 'Yes, Cancel Ride',
+                                  confirmVariant: 'danger',
+                                  onConfirm: () => adminCancelRide(r.id)
+                                });
+                              }}
+                              className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold rounded-lg transition inline-flex items-center gap-1 text-[11px]"
+                              title="Cancel Ride"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              Cancel
+                            </button>
+                          </>
+                        )}
+
+                        {(r.status === 'completed' || r.status === 'cancelled') && (
+                          <button
+                            onClick={() => {
+                              setConfirmModal({
+                                isOpen: true,
+                                title: `Permanently Delete Ride Record?`,
+                                message: `Permanently delete ride "${r.from} → ${r.to}" record from database?`,
+                                confirmText: 'Delete Permanently',
+                                confirmVariant: 'danger',
+                                onConfirm: () => adminDeleteRidePermanently(r.id)
+                              });
+                            }}
+                            className="px-2 py-1 bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-lg transition inline-flex items-center gap-1 text-[11px]"
+                            title="Delete Record"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -520,7 +805,18 @@ export const AdminDashboard = () => {
       {/* TAB 5: BOOKING MANAGEMENT */}
       {adminTab === 'bookings' && (
         <div className="space-y-6">
-          <h3 className="text-xl font-bold text-slate-900">All Booking Requests</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900">All Booking Requests</h3>
+              <p className="text-xs text-slate-500">
+                Remove passengers from rides or monitor booking confirmations
+              </p>
+            </div>
+            <div className="text-xs text-slate-500 font-semibold">
+              Total Bookings: {bookings.length}
+            </div>
+          </div>
+
           <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
@@ -530,6 +826,7 @@ export const AdminDashboard = () => {
                   <th className="py-3 px-4">Seats</th>
                   <th className="py-3 px-4">Contribution</th>
                   <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -549,11 +846,42 @@ export const AdminDashboard = () => {
                             ? 'bg-emerald-100 text-emerald-800'
                             : b.status === 'pending'
                             ? 'bg-amber-100 text-amber-800'
+                            : b.status === 'completed'
+                            ? 'bg-slate-200 text-slate-800'
                             : 'bg-slate-100 text-slate-700'
                         }`}
                       >
                         {b.status}
                       </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {(b.status === 'confirmed' || b.status === 'pending') && (
+                          <button
+                            onClick={() => {
+                              setConfirmModal({
+                                isOpen: true,
+                                title: `Remove Passenger ${b.passengerName} from Ride?`,
+                                message: `Are you sure you want to remove ${b.passengerName} from this ride (${b.from} → ${b.to})? The seat will be released back to the ride and the passenger will be notified.`,
+                                confirmText: 'Yes, Remove from Ride',
+                                confirmVariant: 'danger',
+                                onConfirm: () => adminCancelBooking(b.id, 'Removed by platform administrator')
+                              });
+                            }}
+                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold rounded-lg transition inline-flex items-center gap-1 text-[11px]"
+                            title="Remove Passenger from Ride"
+                          >
+                            <UserMinus className="w-3.5 h-3.5" />
+                            Remove from Ride
+                          </button>
+                        )}
+                        {b.status === 'completed' && (
+                          <span className="text-[11px] text-emerald-600 font-semibold">Completed ✓</span>
+                        )}
+                        {b.status === 'cancelled' && (
+                          <span className="text-[11px] text-slate-400">Cancelled</span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -726,6 +1054,64 @@ export const AdminDashboard = () => {
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition"
               >
                 Save New Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reusable Action Confirmation Modal */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center ${
+                    confirmModal.confirmVariant === 'success'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-rose-100 text-rose-700'
+                  }`}
+                >
+                  {confirmModal.confirmVariant === 'success' ? (
+                    <CheckCircle2 className="w-5 h-5" />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5" />
+                  )}
+                </div>
+                <h4 className="font-bold text-slate-900 text-base">{confirmModal.title}</h4>
+              </div>
+              <button
+                onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">{confirmModal.message}</p>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmModal.onConfirm) confirmModal.onConfirm();
+                  setConfirmModal({ ...confirmModal, isOpen: false });
+                }}
+                className={`px-4 py-2 text-white font-bold text-xs rounded-xl shadow-md transition ${
+                  confirmModal.confirmVariant === 'success'
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'bg-rose-600 hover:bg-rose-700'
+                }`}
+              >
+                {confirmModal.confirmText}
               </button>
             </div>
           </div>

@@ -116,19 +116,21 @@ const STORAGE_REAL_RIDES = 'ridesharex_real_rides_v1';
 const STORAGE_REAL_BOOKINGS = 'ridesharex_real_bookings_v1';
 
 // Safe storage access for Node test environments and browsers
+const nodeMemoryStore = {};
 const safeStorage = {
   getItem: (k) => {
     try {
-      return typeof localStorage !== 'undefined' ? localStorage.getItem(k) : null;
+      return typeof localStorage !== 'undefined' ? localStorage.getItem(k) : nodeMemoryStore[k] || null;
     } catch {
-      return null;
+      return nodeMemoryStore[k] || null;
     }
   },
   setItem: (k, v) => {
     try {
       if (typeof localStorage !== 'undefined') localStorage.setItem(k, v);
+      else nodeMemoryStore[k] = String(v);
     } catch {
-      // ignore
+      nodeMemoryStore[k] = String(v);
     }
   }
 };
@@ -237,6 +239,24 @@ export const saveRealBooking = (booking) => {
   }
   safeStorage.setItem(STORAGE_REAL_BOOKINGS, JSON.stringify(bookings));
   return booking;
+};
+
+export const deleteRealUser = (userId) => {
+  const users = getRealUsers().filter((u) => u.id !== userId);
+  safeStorage.setItem(STORAGE_REAL_USERS, JSON.stringify(users));
+  return true;
+};
+
+export const deleteRealRide = (rideId) => {
+  const rides = getRealRides().filter((r) => r.id !== rideId);
+  safeStorage.setItem(STORAGE_REAL_RIDES, JSON.stringify(rides));
+  return true;
+};
+
+export const deleteRealBooking = (bookingId) => {
+  const bookings = getRealBookings().filter((b) => b.id !== bookingId);
+  safeStorage.setItem(STORAGE_REAL_BOOKINGS, JSON.stringify(bookings));
+  return true;
 };
 
 /**

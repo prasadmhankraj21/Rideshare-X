@@ -113,6 +113,29 @@ export const DriverDashboard = () => {
   const acceptedBookings = driverBookings.filter((b) => b.status === 'confirmed');
   const rejectedBookings = driverBookings.filter((b) => b.status === 'rejected');
 
+  // Auto-switch back to normal dashboard and close modal if ride is completed
+  const prevInProgressCount = React.useRef(inProgressRides.length);
+  React.useEffect(() => {
+    if (prevInProgressCount.current > 0 && inProgressRides.length === 0) {
+      triggerToast('Ride Completed! 🎉', 'Trip marked completed. Returning to normal dashboard.', 'success');
+      setCoordinationModalOpen(false);
+      if (activeDriverTab === 'active_ride') {
+        setActiveDriverTab('overview');
+      }
+    }
+    prevInProgressCount.current = inProgressRides.length;
+  }, [inProgressRides.length, activeDriverTab]);
+
+  // If currently opened coordination booking is completed or cancelled, auto-close modal
+  React.useEffect(() => {
+    if (coordinationModalOpen && selectedCoordinationBooking) {
+      const liveBkg = bookings.find((b) => b.id === selectedCoordinationBooking.id);
+      if (liveBkg && (liveBkg.status === 'completed' || liveBkg.status === 'cancelled')) {
+        setCoordinationModalOpen(false);
+      }
+    }
+  }, [bookings, coordinationModalOpen, selectedCoordinationBooking]);
+
   const isVerified = currentUser?.verificationStatus === 'verified';
 
   // Handle Create Ride click with verification check

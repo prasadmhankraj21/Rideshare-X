@@ -27,10 +27,14 @@ import {
   supabaseSaveRide,
   supabaseSearchRides,
   supabaseFetchAllRides,
+  saveRealUser,
   getRealUsers,
+  deleteRealUser,
   getRealRides,
+  deleteRealRide,
   getRealBookings,
   saveRealBooking,
+  deleteRealBooking,
   saveRealRide
 } from '../services/supabaseClient';
 import {
@@ -40,8 +44,11 @@ import {
   firebaseSignInUser,
   firebaseSaveRide,
   firebaseFetchAllRides,
+  firebaseDeleteRide,
   firebaseSaveBooking,
   firebaseFetchAllBookings,
+  firebaseDeleteBooking,
+  firebaseDeleteUser,
   subscribeToRealtimeRides,
   subscribeToRealtimeBookings,
   syncLocalDataToFirebase
@@ -104,7 +111,7 @@ export const AppProvider = ({ children }) => {
   // Real published rides from Supabase / persistent storage (strictly no fake/mock rides)
   const [rides, setRides] = useState(() => {
     const realRides = getRealRides().filter((r) =>
-      ['published', 'active', 'scheduled', 'in_progress'].includes(r.status)
+      ['published', 'active', 'scheduled', 'in_progress', 'completed'].includes(r.status)
     );
     if (realRides && realRides.length > 0) {
       return realRides;
@@ -117,7 +124,7 @@ export const AppProvider = ({ children }) => {
           (r) =>
             !r.id.startsWith('ride-10') &&
             r.driverId !== 'drv-1' &&
-            ['published', 'active', 'scheduled', 'in_progress'].includes(r.status)
+            ['published', 'active', 'scheduled', 'in_progress', 'completed'].includes(r.status)
         );
         if (nonDemo.length > 0) return nonDemo;
       } catch {}
@@ -266,7 +273,7 @@ export const AppProvider = ({ children }) => {
       console.warn('Error refreshing rides:', e);
     }
     const local = getRealRides().filter((r) =>
-      ['published', 'active', 'scheduled', 'in_progress'].includes(r.status)
+      ['published', 'active', 'scheduled', 'in_progress', 'completed'].includes(r.status)
     );
     setRides(local);
     return local;
@@ -709,6 +716,318 @@ export const AppProvider = ({ children }) => {
     setNotifications(prev => [newNotif, ...prev]);
     triggerToast('Re-verification Sent', 'Driver has been notified to re-verify.', 'info');
     return true;
+  };
+
+  // Admin: Complete any Ride & its Bookings (Guarded by Backend / Database Authorization)
+  const adminCompleteRide = async (rideId) => {
+    const auth = authorizeAdminOperation('adminCompleteRide');
+    if (!auth.authorized) {
+      triggerToast('403 Forbidden', auth.error, 'error');
+      return { success: false, error: auth.error };
+    }
+
+    const targetRide = rides.find(r => r.id === rideId);
+    let updatedRide = null;
+
+    setRides(prev =>
+      prev.map(r => {
+        if (r.id === rideId) {
+          updatedRide = {
+            ...r,
+            status: 'completed',
+            depositStatus: 'refunded',
+            activeLocation: null,
+            completedBy: 'admin',
+            completedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          return updatedRide;
+        }
+        return r;
+      })
+    );
+
+    if (updatedRide) {
+      if (isFirebaseConfigured()) {
+        await firebaseSaveRide(updatedRide);
+      } else {
+        saveRealRide(updatedRide);
+      }
+    }
+
+    // Update all confirmed, in_progress, or pending bookings for this ride to completed
+    const updatedBookings = [];
+    setBookings(prev =>
+      prev.map(b => {
+        if (b.rideId === rideId && (b.status === 'confirmed' || b.status === 'in_progress' || b.status === 'pending')) {
+          const compBkg = {
+            ...b,
+            status: 'completed',
+            completedBy: 'admin',
+            completedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          updatedBookings.push(compBkg);
+          return compBkg;
+        }
+        return b;
+      })
+    );
+
+    for (const b of updatedBookings) {
+      if (isFirebaseConfigured()) {
+        await firebaseSaveBooking(b);
+      } else {
+        saveRealBooking(b);
+      }
+    }
+
+    // Notify driver about cancellation deposit refund and completion
+    const notifDriver = {
+      id: `notif-${Date.now()}-drv`,
+      targetUserId: targetRide?.driverId,
+      role: 'driver',
+      title: 'Ride Completed by Admin! 🎉',
+      message: `Your ride ${targetRide?.from || ''} → ${targetRide?.to || ''} has been marked completed by Admin. Your cancellation deposit has been refunded.`,
+      time: 'Just now',
+      type: 'ride_completed',
+      read: false
+    };
+
+    // Notify passengers
+    const psgNotifs = updatedBookings.map(b => ({
+      id: `notif-${Date.now()}-${b.id}`,
+      targetUserId: b.passengerId,
+      role: 'passenger',
+      title: 'Ride Completed! 🎉',
+      message: `Admin has marked your trip ${b.from} → ${b.to} as completed. Thank you for carpooling with Rideshare_X!`,
+      time: 'Just now',
+      type: 'ride_completed',
+      read: false
+    }));
+
+    setNotifications(prev => [notifDriver, ...psgNotifs, ...prev]);
+    triggerToast('Ride Completed', `Ride ${targetRide?.from || ''} → ${targetRide?.to || ''} marked completed by Admin. Both passenger and driver updated.`, 'success');
+    return { success: true, ride: updatedRide };
+  };
+
+  // Admin: Remove Driver (Guarded by Backend / Database Authorization)
+  const adminRemoveDriver = async (driverId) => {
+    const auth = authorizeAdminOperation('adminRemoveDriver');
+    if (!auth.authorized) {
+      triggerToast('403 Forbidden', auth.error, 'error');
+      return { success: false, error: auth.error };
+    }
+
+    const targetDriver = drivers.find(d => d.id === driverId);
+
+    // Cancel any active/published rides for this driver
+    const driverRides = rides.filter(r => r.driverId === driverId);
+    for (const r of driverRides) {
+      if (['published', 'scheduled', 'in_progress', 'active'].includes(r.status)) {
+        await adminCancelRide(r.id, 'Driver profile removed by platform administrator');
+      }
+    }
+
+    // Remove driver from state
+    setDrivers(prev => prev.filter(d => d.id !== driverId));
+
+    if (isFirebaseConfigured()) {
+      await firebaseDeleteUser(driverId);
+    }
+    deleteRealUser(driverId);
+
+    // If current logged-in user is this driver, log them out
+    if (currentUserId === driverId && currentRole === 'driver') {
+      logout();
+    }
+
+    triggerToast('Driver Removed', `Driver ${targetDriver?.name || driverId} removed from platform.`, 'success');
+    return { success: true };
+  };
+
+  // Admin: Remove Passenger (Guarded by Backend / Database Authorization)
+  const adminRemovePassenger = async (passengerId) => {
+    const auth = authorizeAdminOperation('adminRemovePassenger');
+    if (!auth.authorized) {
+      triggerToast('403 Forbidden', auth.error, 'error');
+      return { success: false, error: auth.error };
+    }
+
+    const targetPassenger = passengers.find(p => p.id === passengerId);
+
+    // Cancel all active bookings by this passenger and restore seats
+    const userBookings = bookings.filter(b => b.passengerId === passengerId);
+    for (const b of userBookings) {
+      if (b.status === 'confirmed' || b.status === 'pending') {
+        await adminCancelBooking(b.id, 'Passenger account removed by administrator');
+      }
+    }
+
+    // Remove passenger from state
+    setPassengers(prev => prev.filter(p => p.id !== passengerId));
+
+    if (isFirebaseConfigured()) {
+      await firebaseDeleteUser(passengerId);
+    }
+    deleteRealUser(passengerId);
+
+    // If current logged-in user is this passenger, log them out
+    if (currentUserId === passengerId && currentRole === 'passenger') {
+      logout();
+    }
+
+    triggerToast('Passenger Removed', `Passenger ${targetPassenger?.name || passengerId} removed from platform.`, 'success');
+    return { success: true };
+  };
+
+  // Admin: Cancel Booking (Guarded by Backend / Database Authorization)
+  const adminCancelBooking = async (bookingId, reason = 'Cancelled by Platform Administrator') => {
+    const auth = authorizeAdminOperation('adminCancelBooking');
+    if (!auth.authorized) {
+      triggerToast('403 Forbidden', auth.error, 'error');
+      return { success: false, error: auth.error };
+    }
+
+    const targetBooking = bookings.find(b => b.id === bookingId);
+    if (!targetBooking) return { success: false, error: 'Booking not found' };
+
+    let updatedBooking = null;
+    setBookings(prev =>
+      prev.map(b => {
+        if (b.id === bookingId) {
+          updatedBooking = {
+            ...b,
+            status: 'cancelled',
+            cancelReason: reason,
+            cancelledBy: 'admin',
+            updatedAt: new Date().toISOString()
+          };
+          return updatedBooking;
+        }
+        return b;
+      })
+    );
+
+    if (updatedBooking) {
+      if (isFirebaseConfigured()) {
+        await firebaseSaveBooking(updatedBooking);
+      } else {
+        saveRealBooking(updatedBooking);
+      }
+    }
+
+    // Restore seats to the ride if it was confirmed
+    if (targetBooking.status === 'confirmed') {
+      setRides(prev =>
+        prev.map(r => {
+          if (r.id === targetBooking.rideId) {
+            const newSeats = Math.min(
+              r.totalPassengerSeatsAllowed || 4,
+              (r.availableSeats || 0) + (targetBooking.seatsRequested || 1)
+            );
+            const updRide = { ...r, availableSeats: newSeats, updatedAt: new Date().toISOString() };
+            if (isFirebaseConfigured()) firebaseSaveRide(updRide);
+            else saveRealRide(updRide);
+            return updRide;
+          }
+          return r;
+        })
+      );
+    }
+
+    // Notify passenger
+    const psgNotif = {
+      id: `notif-${Date.now()}-psg`,
+      targetUserId: targetBooking.passengerId,
+      role: 'passenger',
+      title: 'Booking Cancelled by Admin',
+      message: `Your booking for ${targetBooking.from} → ${targetBooking.to} has been cancelled by Admin. Reason: ${reason}`,
+      time: 'Just now',
+      type: 'booking_cancelled',
+      read: false
+    };
+    setNotifications(prev => [psgNotif, ...prev]);
+
+    triggerToast('Booking Removed', `Passenger booking ${targetBooking.passengerName} cancelled. Seats restored.`, 'info');
+    return { success: true };
+  };
+
+  // Admin: Cancel Ride (Guarded by Backend / Database Authorization)
+  const adminCancelRide = async (rideId, reason = 'Cancelled by Platform Administrator') => {
+    const auth = authorizeAdminOperation('adminCancelRide');
+    if (!auth.authorized) {
+      triggerToast('403 Forbidden', auth.error, 'error');
+      return { success: false, error: auth.error };
+    }
+
+    const targetRide = rides.find(r => r.id === rideId);
+    let updatedRide = null;
+
+    setRides(prev =>
+      prev.map(r => {
+        if (r.id === rideId) {
+          updatedRide = {
+            ...r,
+            status: 'cancelled',
+            cancelReason: reason,
+            cancelledBy: 'admin',
+            depositStatus: 'refunded',
+            updatedAt: new Date().toISOString()
+          };
+          return updatedRide;
+        }
+        return r;
+      })
+    );
+
+    if (updatedRide) {
+      if (isFirebaseConfigured()) {
+        await firebaseSaveRide(updatedRide);
+      } else {
+        saveRealRide(updatedRide);
+      }
+    }
+
+    // Cancel all active bookings on this ride
+    setBookings(prev =>
+      prev.map(b => {
+        if (b.rideId === rideId && (b.status === 'confirmed' || b.status === 'pending')) {
+          const cnlB = {
+            ...b,
+            status: 'cancelled',
+            cancelReason: 'Ride was cancelled by Admin',
+            cancelledBy: 'admin',
+            updatedAt: new Date().toISOString()
+          };
+          if (isFirebaseConfigured()) firebaseSaveBooking(cnlB);
+          else saveRealBooking(cnlB);
+          return cnlB;
+        }
+        return b;
+      })
+    );
+
+    triggerToast('Ride Cancelled', `Ride ${targetRide?.from || ''} → ${targetRide?.to || ''} has been cancelled by Admin.`, 'info');
+    return { success: true };
+  };
+
+  // Admin: Delete Ride Permanently (Guarded by Backend / Database Authorization)
+  const adminDeleteRidePermanently = async (rideId) => {
+    const auth = authorizeAdminOperation('adminDeleteRide');
+    if (!auth.authorized) {
+      triggerToast('403 Forbidden', auth.error, 'error');
+      return { success: false, error: auth.error };
+    }
+
+    setRides(prev => prev.filter(r => r.id !== rideId));
+    if (isFirebaseConfigured()) {
+      await firebaseDeleteRide(rideId);
+    }
+    deleteRealRide(rideId);
+
+    triggerToast('Ride Deleted', 'Ride permanently removed from database.', 'info');
+    return { success: true };
   };
 
   // Create Ride (Driver only)
@@ -1496,6 +1815,12 @@ export const AppProvider = ({ children }) => {
         approveDriverVerification,
         rejectDriverVerification,
         requestReverification,
+        adminCompleteRide,
+        adminRemoveDriver,
+        adminRemovePassenger,
+        adminCancelBooking,
+        adminCancelRide,
+        adminDeleteRidePermanently,
         createRide,
         requestBooking,
         acceptBooking,

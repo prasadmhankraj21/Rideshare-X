@@ -154,6 +154,38 @@ export const PassengerDashboard = () => {
     }
   }, [activeRideForPassenger?.status, activeRideForPassenger?.id]);
 
+  // Auto-switch passenger back to normal dashboard when ride is completed
+  const prevActiveBookingId = React.useRef(activeConfirmedBooking?.id);
+  React.useEffect(() => {
+    if (prevActiveBookingId.current && !activeConfirmedBooking) {
+      const finishedBkg = myBookings.find(
+        (b) => b.id === prevActiveBookingId.current && b.status === 'completed'
+      );
+      if (finishedBkg) {
+        triggerToast(
+          'Ride Completed! 🎉',
+          `Your trip ${finishedBkg.from} → ${finishedBkg.to} has been completed. Returning to normal dashboard.`,
+          'success'
+        );
+        setCoordinationModalOpen(false);
+        if (activePassengerTab === 'active_ride') {
+          setActivePassengerTab('overview');
+        }
+      }
+    }
+    prevActiveBookingId.current = activeConfirmedBooking?.id;
+  }, [activeConfirmedBooking, myBookings, activePassengerTab]);
+
+  // If currently opened coordination booking is completed or cancelled, auto-close modal
+  React.useEffect(() => {
+    if (coordinationModalOpen && selectedCoordinationBooking) {
+      const liveBkg = myBookings.find((b) => b.id === selectedCoordinationBooking.id);
+      if (liveBkg && (liveBkg.status === 'completed' || liveBkg.status === 'cancelled')) {
+        setCoordinationModalOpen(false);
+      }
+    }
+  }, [myBookings, coordinationModalOpen, selectedCoordinationBooking]);
+
   const openRideDetails = (ride) => {
     setActiveDetailRide(ride);
     setSeatsToBook(1);

@@ -207,6 +207,28 @@ export const RideCoordinationModal = ({
 
   if (!isOpen || !booking) return null;
 
+  if (booking.status === 'completed' || ride?.status === 'completed') {
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-200 text-center space-y-4 animate-in fade-in zoom-in-95">
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-3xl mx-auto flex items-center justify-center shadow-inner">
+            <CheckCircle2 className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-black text-slate-900">Ride Completed! 🎉</h3>
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+            This trip for <strong>{booking.from} → {booking.to}</strong> has been safely completed.
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md transition"
+          >
+            Return to Normal Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Contact targets
   const otherPartyName = isDriverView ? booking.passengerName : (ride?.driverName || booking.driverName || 'Driver');
   const otherPartyPhone = isDriverView
