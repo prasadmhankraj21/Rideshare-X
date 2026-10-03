@@ -92,6 +92,15 @@ export const firebaseSignUpDriver = async ({ email, password, fullName, phone, c
       return { success: true, user: driverProfile };
     } catch (err) {
       console.error('[Firebase Driver Signup]', err);
+      if (err.code === 'auth/email-already-in-use') {
+        return { success: false, error: 'A driver account with this email already exists. Please sign in.' };
+      }
+      if (err.code === 'auth/weak-password') {
+        return { success: false, error: 'Password must be at least 6 characters long.' };
+      }
+      if (err.code === 'auth/invalid-email') {
+        return { success: false, error: 'Please enter a valid email address.' };
+      }
       return { success: false, error: err.message };
     }
   }
@@ -163,6 +172,15 @@ export const firebaseSignUpPassenger = async ({ email, password, fullName, phone
       return { success: true, user: passengerProfile };
     } catch (err) {
       console.error('[Firebase Passenger Signup]', err);
+      if (err.code === 'auth/email-already-in-use') {
+        return { success: false, error: 'A passenger account with this email already exists. Please sign in.' };
+      }
+      if (err.code === 'auth/weak-password') {
+        return { success: false, error: 'Password must be at least 6 characters long.' };
+      }
+      if (err.code === 'auth/invalid-email') {
+        return { success: false, error: 'Please enter a valid email address.' };
+      }
       return { success: false, error: err.message };
     }
   }

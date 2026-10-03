@@ -1,25 +1,16 @@
 /**
- * Firebase Project Configuration
- * 
- * You can provide your Firebase credentials either:
- * 1. By setting environment variables in .env (recommended):
- *    VITE_FIREBASE_API_KEY=...
- *    VITE_FIREBASE_AUTH_DOMAIN=...
- *    VITE_FIREBASE_PROJECT_ID=...
- *    VITE_FIREBASE_STORAGE_BUCKET=...
- *    VITE_FIREBASE_MESSAGING_SENDER_ID=...
- *    VITE_FIREBASE_APP_ID=...
- * 
- * 2. Or by directly filling in the default config below.
+ * Firebase Project Configuration for Rideshare_X
+ * Real-time cross-device data sync & authentication
  */
 
 export const firebaseConfig = {
-  apiKey: import.meta.env?.VITE_FIREBASE_API_KEY || "",
-  authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "",
-  projectId: import.meta.env?.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: import.meta.env?.VITE_FIREBASE_APP_ID || ""
+  apiKey: import.meta.env?.VITE_FIREBASE_API_KEY || "AIzaSyBhc24sp7C3It2dhpsPkV4W87XjzZN-X-A",
+  authDomain: import.meta.env?.VITE_FIREBASE_AUTH_DOMAIN || "rideshare-x.firebaseapp.com",
+  projectId: import.meta.env?.VITE_FIREBASE_PROJECT_ID || "rideshare-x",
+  storageBucket: import.meta.env?.VITE_FIREBASE_STORAGE_BUCKET || "rideshare-x.firebasestorage.app",
+  messagingSenderId: import.meta.env?.VITE_FIREBASE_MESSAGING_SENDER_ID || "859622089683",
+  appId: import.meta.env?.VITE_FIREBASE_APP_ID || "1:859622089683:web:95c4fee71168243881c526",
+  measurementId: import.meta.env?.VITE_FIREBASE_MEASUREMENT_ID || "G-WF6M1KT45Z"
 };
 
 /**
@@ -29,7 +20,6 @@ export const isFirebaseConfigured = () => {
   return Boolean(
     firebaseConfig.apiKey &&
     firebaseConfig.projectId &&
-    firebaseConfig.apiKey !== "PASTE_YOUR_API_KEY_HERE" &&
-    firebaseConfig.projectId !== "PASTE_YOUR_PROJECT_ID_HERE"
+    firebaseConfig.apiKey.startsWith("AIza")
   );
 };
