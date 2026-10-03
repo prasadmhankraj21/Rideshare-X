@@ -25,6 +25,7 @@ import { useApp } from '../context/AppContext';
 import { LiveTrackingMap } from '../components/LiveTrackingMap';
 import { CancellationPolicyModal } from '../components/CancellationPolicyModal';
 import { CostSharingExplainer } from '../components/CostSharingExplainer';
+import { RideCoordinationModal } from '../components/RideCoordinationModal';
 
 export const PassengerDashboard = () => {
   const {
@@ -46,6 +47,15 @@ export const PassengerDashboard = () => {
   const [searchDate, setSearchDate] = useState('');
   const [searchSeatsCount, setSearchSeatsCount] = useState(1);
   const [onlyVerifiedDrivers, setOnlyVerifiedDrivers] = useState(false);
+
+  // Connected Driver Ride Coordination & Pickup Hub Modal State
+  const [coordinationModalOpen, setCoordinationModalOpen] = useState(false);
+  const [selectedCoordinationBooking, setSelectedCoordinationBooking] = useState(null);
+
+  const handleOpenCoordination = (bkg) => {
+    setSelectedCoordinationBooking(bkg);
+    setCoordinationModalOpen(true);
+  };
 
   // Fetch latest real published rides & bookings on mount and whenever search parameters change
   React.useEffect(() => {
@@ -167,6 +177,45 @@ export const PassengerDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Confirmed Booking Coordination Banner */}
+      {activeConfirmedBooking && (
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-teal-700 rounded-3xl p-5 sm:p-6 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 animate-in fade-in duration-300">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shrink-0 shadow-inner">
+              <CheckCircle2 className="w-6 h-6 text-emerald-200" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/30 text-emerald-100 text-[10px] font-black uppercase tracking-wider border border-white/20">
+                  Booking Confirmed by Driver!
+                </span>
+                {activeConfirmedBooking.boardingPin && (
+                  <span className="text-xs bg-white/10 px-2.5 py-0.5 rounded-full font-mono text-amber-200 font-bold border border-white/10">
+                    Boarding PIN: {activeConfirmedBooking.boardingPin}
+                  </span>
+                )}
+              </div>
+              <h3 className="text-lg sm:text-xl font-black mt-1">
+                {activeConfirmedBooking.from} → {activeConfirmedBooking.to}
+              </h3>
+              <p className="text-xs text-emerald-100 mt-0.5 leading-relaxed">
+                Driver confirmed your request! Open the Ride Hub to coordinate the exact pickup spot on the map, share your location, or call/chat with your driver.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+            <button
+              onClick={() => handleOpenCoordination(activeConfirmedBooking)}
+              className="w-full md:w-auto px-5 py-3 bg-white hover:bg-emerald-50 active:scale-95 text-emerald-800 font-black text-xs rounded-2xl shadow-lg flex items-center justify-center gap-2 transition"
+            >
+              <MapPin className="w-4 h-4 text-emerald-600" />
+              Open Ride Hub & Set Pickup
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Passenger Navigation Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200 text-xs font-bold text-slate-600">
@@ -491,16 +540,25 @@ export const PassengerDashboard = () => {
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
                     {bkg.status === 'confirmed' && (
-                      <button
-                        onClick={() => {
-                          setSelectedRideId(bkg.rideId);
-                          setActivePassengerTab('active_ride');
-                        }}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5"
-                      >
-                        <Navigation className="w-3.5 h-3.5" />
-                        Join Live GPS Tracking
-                      </button>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => handleOpenCoordination(bkg)}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5"
+                        >
+                          <MapPin className="w-3.5 h-3.5" />
+                          Pickup Hub & Chat Driver
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedRideId(bkg.rideId);
+                            setActivePassengerTab('active_ride');
+                          }}
+                          className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                        >
+                          <Navigation className="w-3.5 h-3.5" />
+                          Live Map
+                        </button>
+                      </div>
                     )}
 
                     {bkg.status === 'pending' && (
@@ -725,6 +783,17 @@ export const PassengerDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Connected Driver Ride Coordination & Pickup Hub Modal */}
+      {selectedCoordinationBooking && (
+        <RideCoordinationModal
+          isOpen={coordinationModalOpen}
+          onClose={() => setCoordinationModalOpen(false)}
+          booking={selectedCoordinationBooking}
+          ride={rides.find((r) => r.id === selectedCoordinationBooking?.rideId)}
+          isDriverView={false}
+        />
       )}
     </div>
   );

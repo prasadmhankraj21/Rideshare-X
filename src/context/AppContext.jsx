@@ -863,9 +863,41 @@ export const AppProvider = ({ children }) => {
   // Driver: Accept Booking
   const acceptBooking = async (bookingId) => {
     const booking = bookings.find(b => b.id === bookingId);
-    if (!booking) return;
+    if (!booking) return null;
 
-    const updatedBooking = { ...booking, status: 'confirmed', updatedAt: new Date().toISOString() };
+    const targetRide = rides.find(r => r.id === booking.rideId);
+    const boardingPin = booking.boardingPin || Math.floor(1000 + Math.random() * 9000).toString();
+
+    const initialPickupSpot = booking.exactPickupSpot || {
+      address: booking.pickupPoint || (targetRide?.pickupDropPoints?.[0]?.point || `${booking.from} Center`),
+      coordinates: targetRide?.fromCoordinates || [18.4088, 76.5604],
+      updatedBy: 'system',
+      updatedAt: new Date().toISOString()
+    };
+
+    const initialMessages = (booking.chatMessages && booking.chatMessages.length > 0)
+      ? booking.chatMessages
+      : [
+          {
+            id: `msg-${Date.now()}-sys`,
+            senderId: 'system',
+            senderName: 'Rideshare_X',
+            senderRole: 'system',
+            text: `Booking confirmed! Boarding PIN: ${boardingPin}. You can now coordinate pickup location on the map and chat directly here.`,
+            timestamp: new Date().toISOString()
+          }
+        ];
+
+    const updatedBooking = {
+      ...booking,
+      status: 'confirmed',
+      boardingPin,
+      exactPickupSpot: initialPickupSpot,
+      chatMessages: initialMessages,
+      driverPhone: booking.driverPhone || currentUser?.phone || '+91 98765 43210',
+      passengerPhone: booking.passengerPhone || '+91 91234 56780',
+      updatedAt: new Date().toISOString()
+    };
 
     // Update booking status
     setBookings(prev =>
@@ -903,7 +935,7 @@ export const AppProvider = ({ children }) => {
       targetUserId: booking.passengerId,
       role: 'passenger',
       title: 'Booking Confirmed! ✅',
-      message: `Your booking for ${booking.seatsRequested} seat(s) on ${booking.from} → ${booking.to} has been accepted. Have a great journey!`,
+      message: `Your booking for ${booking.seatsRequested} seat(s) on ${booking.from} → ${booking.to} has been accepted. Coordinate pickup & contact driver directly!`,
       time: 'Just now',
       type: 'booking_confirmed',
       read: false
@@ -911,6 +943,7 @@ export const AppProvider = ({ children }) => {
 
     setNotifications(prev => [notifPassenger, ...prev]);
     triggerToast('Booking Accepted', `Confirmed booking for ${booking.passengerName}. Available seats updated.`, 'success');
+    return updatedBooking;
   };
 
   // Driver: Reject Booking
@@ -943,6 +976,91 @@ export const AppProvider = ({ children }) => {
 
     setNotifications(prev => [notifPassenger, ...prev]);
     triggerToast('Booking Rejected', `Declined request from ${booking.passengerName}.`, 'warning');
+  };
+
+  // Update Booking Coordination (Location, Chat Messages, Boarding verification)
+  const updateBookingCoordination = async (bookingId, updates) => {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking) return null;
+
+    let updatedMessages = booking.chatMessages || [];
+    if (updates.newMessage) {
+      updatedMessages = [...updatedMessages, updates.newMessage];
+    }
+
+    const updatedBooking = {
+      ...booking,
+      exactPickupSpot: updates.exactPickupSpot || booking.exactPickupSpot,
+      chatMessages: updatedMessages,
+      boardingVerified: updates.boardingVerified !== undefined ? updates.boardingVerified : booking.boardingVerified,
+      updatedAt: new Date().toISOString()
+    };
+
+    setBookings(prev =>
+      prev.map(b => (b.id === bookingId ? updatedBooking : b))
+    );
+
+    if (isFirebaseConfigured()) {
+      await firebaseSaveBooking(updatedBooking);
+    } else {
+      saveRealBooking(updatedBooking);
+    }
+
+    if (updates.toastMessage) {
+      triggerToast(updates.toastTitle || 'Coordination Updated', updates.toastMessage, 'success');
+    }
+
+    return updatedBooking;
+  };
+
+  // Send a chat message between connected driver and passenger
+  const sendBookingMessage = async (bookingId, text) => {
+    if (!text || !text.trim()) return null;
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking) return null;
+
+    const newMsg = {
+      id: `msg-${Date.now()}`,
+      senderId: currentUser?.id || 'guest',
+      senderName: currentUser?.name || (currentRole === 'driver' ? 'Driver' : 'Passenger'),
+      senderRole: currentRole,
+      text: text.trim(),
+      timestamp: new Date().toISOString()
+    };
+
+    return await updateBookingCoordination(bookingId, {
+      newMessage: newMsg,
+      toastTitle: 'Message Sent',
+      toastMessage: 'Your message has been delivered.'
+    });
+  };
+
+  // Update exact pickup spot on map with custom landmark/coordinates
+  const updateExactPickupSpot = async (bookingId, { address, coordinates }) => {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!booking) return null;
+
+    const updaterName = currentUser?.name || (currentRole === 'driver' ? 'Driver' : 'Passenger');
+    const newMsg = {
+      id: `msg-${Date.now()}-loc`,
+      senderId: 'system',
+      senderName: 'Location Update',
+      senderRole: 'system',
+      text: `📍 ${updaterName} updated pickup spot to: "${address}"`,
+      timestamp: new Date().toISOString()
+    };
+
+    return await updateBookingCoordination(bookingId, {
+      exactPickupSpot: {
+        address,
+        coordinates,
+        updatedBy: updaterName,
+        updatedAt: new Date().toISOString()
+      },
+      newMessage: newMsg,
+      toastTitle: 'Pickup Spot Updated',
+      toastMessage: `Exact pickup spot set to "${address}".`
+    });
   };
 
   // Driver: Start Ride
@@ -1330,6 +1448,9 @@ export const AppProvider = ({ children }) => {
         setGlobalSearch,
         refreshRides,
         refreshBookings,
+        updateBookingCoordination,
+        sendBookingMessage,
+        updateExactPickupSpot,
         searchRides: supabaseSearchRides
       }}
     >
