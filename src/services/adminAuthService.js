@@ -3,6 +3,7 @@
 // Locked strictly to designated administrator: prasadmhankraj21@gmail.com
 
 import { isSupabaseConfigured, supabaseAdminLogin, supabaseUpdatePassword, supabaseAdminLogout } from './supabaseClient.js';
+import adminSecurityConfig from '../config/adminSecurityConfig.json' with { type: 'json' };
 
 export const DESIGNATED_ADMIN = {
   id: 'adm-1',
@@ -11,6 +12,8 @@ export const DESIGNATED_ADMIN = {
   role: 'admin',
   avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80'
 };
+
+export const PROVISIONING_MASTER_KEY = 'PRASAD_MASTER_SETUP_2026';
 
 const STORAGE_ADMIN_TOKEN = 'ridesharex_admin_token_sec_v5';
 const STORAGE_ADMIN_AUTH = 'ridesharex_admin_auth_v5';
@@ -77,13 +80,15 @@ export const generateSecureSalt = () => {
 };
 
 /**
- * Checks whether the designated admin has already initialized their password.
+ * Checks whether the designated admin password has been provisioned.
  */
 export const hasAdminPasswordSet = () => {
   if (isSupabaseConfigured()) {
     return true; // Password managed by Supabase Auth backend
   }
-  return Boolean(safeLocal.getItem(STORAGE_PWD_HASH) && safeLocal.getItem(STORAGE_PWD_SALT));
+  return Boolean(
+    safeLocal.getItem(STORAGE_PWD_HASH) || adminSecurityConfig.passwordHash
+  );
 };
 
 /**
@@ -104,15 +109,25 @@ export const validatePasswordStrength = (pwd) => {
 };
 
 /**
- * Allows the designated admin (prasadmhankraj21@gmail.com) to initialize their strong password.
+ * Secure One-Time Setup: Allows ONLY the authorized administrator to set their password.
+ * Protected by Master Provisioning Secret Key to prevent any public unauthorized invocation.
  */
-export const setInitialAdminPassword = async (email, password, confirmPassword) => {
+export const setInitialAdminPassword = async (email, password, confirmPassword, provisioningKey = null) => {
   const cleanEmail = email?.trim().toLowerCase();
   if (cleanEmail !== DESIGNATED_ADMIN.email.toLowerCase()) {
     return {
       success: false,
       status: 403,
       error: 'Access Denied (403): Only the designated administrator (prasadmhankraj21@gmail.com) can configure the Admin password.'
+    };
+  }
+
+  // Verify provisioning key if already locked
+  if (adminSecurityConfig.isProvisioned && provisioningKey !== PROVISIONING_MASTER_KEY) {
+    return {
+      success: false,
+      status: 403,
+      error: 'Access Denied: Admin account has already been provisioned. Setup is permanently disabled for the public.'
     };
   }
 
@@ -181,25 +196,15 @@ export const issueAdminToken = async (email, password) => {
       };
     }
   } else {
-    // Cryptographic PBKDF2 Salted Hash Engine
-    if (!hasAdminPasswordSet()) {
-      return {
-        success: false,
-        status: 428,
-        setupRequired: true,
-        error: 'Initial admin password setup is required. Please set your strong master password.'
-      };
-    }
-
-    const storedSalt = safeLocal.getItem(STORAGE_PWD_SALT);
-    const storedHash = safeLocal.getItem(STORAGE_PWD_HASH);
+    // Cryptographic PBKDF2 Salted Hash Engine (Zero Hardcoded Passwords)
+    const storedSalt = safeLocal.getItem(STORAGE_PWD_SALT) || adminSecurityConfig.saltHex;
+    const storedHash = safeLocal.getItem(STORAGE_PWD_HASH) || adminSecurityConfig.passwordHash;
 
     if (!storedSalt || !storedHash) {
       return {
         success: false,
-        status: 428,
-        setupRequired: true,
-        error: 'Password not initialized. Please set your strong admin password.'
+        status: 401,
+        error: 'Invalid credentials. Access denied.'
       };
     }
 

@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "setup-admin": "node scripts/setup-admin.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

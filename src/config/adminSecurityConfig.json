@@ -1,0 +1,10 @@
+{
+  "designatedAdminEmail": "prasadmhankraj21@gmail.com",
+  "isProvisioned": true,
+  "passwordHash": "b2520db2877ae359eb124d9b638ba585a733b8670ddd47ce20e6d96d2a934fd5",
+  "saltHex": "f89eb0d4c9ebff6464aa9b793aecb963",
+  "iterations": 100000,
+  "algorithm": "PBKDF2-SHA256",
+  "authProvider": "supabase_auth_or_pbkdf2",
+  "provisionedAt": "2026-10-03T02:11:57.911Z"
+}
