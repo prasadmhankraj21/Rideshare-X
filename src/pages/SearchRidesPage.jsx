@@ -139,7 +139,7 @@ export const SearchRidesPage = () => {
     await requestBooking(
       selectedRide.id,
       seatsToBook,
-      selectedRide.pickupDropPoints[0]?.point || selectedRide.from,
+      selectedRide.pickupDropPoints?.[0]?.point || selectedRide.from,
       pickupNotes || 'Travelling with luggage, will be at pickup 10 mins early.'
     );
 
@@ -404,7 +404,7 @@ export const SearchRidesPage = () => {
 
                   <div className="p-3 bg-slate-50 rounded-2xl text-[11px] text-slate-600 space-y-1">
                     <div><strong>Vehicle:</strong> {ride.vehicleDetails}</div>
-                    <div><strong>Pickup:</strong> {ride.pickupDropPoints[0]?.point || ride.from}</div>
+                    <div><strong>Pickup:</strong> {ride.pickupDropPoints?.[0]?.point || ride.from}</div>
                   </div>
                 </div>
               </div>
@@ -510,7 +510,7 @@ export const SearchRidesPage = () => {
               </div>
 
               <div className="text-[11px] text-slate-600 pt-2 border-t border-slate-200">
-                <strong>Pickup Point:</strong> {selectedRide.pickupDropPoints[0]?.point || selectedRide.from}
+                <strong>Pickup Point:</strong> {selectedRide.pickupDropPoints?.[0]?.point || selectedRide.from}
               </div>
             </div>
 

@@ -399,7 +399,7 @@ export const LandingPage = () => {
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-slate-50 text-[11px] text-slate-600">
-                    Pickup: {ride.pickupDropPoints[0]?.point || ride.from}
+                    Pickup: {ride.pickupDropPoints?.[0]?.point || ride.from}
                   </div>
                 </div>
               </div>

@@ -166,7 +166,12 @@ export const PassengerDashboard = () => {
       return;
     }
 
-    await requestBooking(activeDetailRide.id, seatsToBook, activeDetailRide.pickupDropPoints[0]?.point, pickupNotes);
+    await requestBooking(
+      activeDetailRide.id,
+      seatsToBook,
+      activeDetailRide.pickupDropPoints?.[0]?.point || activeDetailRide.from,
+      pickupNotes
+    );
     setDetailModalOpen(false);
     setActivePassengerTab('my_bookings');
   };
@@ -503,7 +508,7 @@ export const PassengerDashboard = () => {
 
                       <div className="p-3 bg-slate-50 rounded-2xl text-[11px] text-slate-600 space-y-1">
                         <div><strong>Vehicle:</strong> {ride.vehicleDetails}</div>
-                        <div><strong>Pickup:</strong> {ride.pickupDropPoints[0]?.point || ride.from}</div>
+                        <div><strong>Pickup:</strong> {ride.pickupDropPoints?.[0]?.point || ride.from}</div>
                       </div>
                     </div>
                   </div>
@@ -766,7 +771,7 @@ export const PassengerDashboard = () => {
               </div>
 
               <div className="text-[11px] text-slate-600 pt-2 border-t border-slate-200">
-                <strong>Pickup Point:</strong> {activeDetailRide.pickupDropPoints[0]?.point || activeDetailRide.from}
+                <strong>Pickup Point:</strong> {activeDetailRide.pickupDropPoints?.[0]?.point || activeDetailRide.from}
               </div>
             </div>
 

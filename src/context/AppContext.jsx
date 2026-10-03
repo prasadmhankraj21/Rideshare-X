@@ -30,7 +30,8 @@ import {
   getRealUsers,
   getRealRides,
   getRealBookings,
-  saveRealBooking
+  saveRealBooking,
+  saveRealRide
 } from '../services/supabaseClient';
 import {
   isFirebaseConfigured,
@@ -814,8 +815,8 @@ export const AppProvider = ({ children }) => {
       seatsRequested: seatsRequested,
       from: targetRide.from,
       to: targetRide.to,
-      pickupPoint: pickupPoint || targetRide.pickupDropPoints[0]?.point || targetRide.from,
-      dropoffPoint: targetRide.pickupDropPoints[targetRide.pickupDropPoints.length - 1]?.point || targetRide.to,
+      pickupPoint: pickupPoint || targetRide?.pickupDropPoints?.[0]?.point || targetRide?.from,
+      dropoffPoint: targetRide?.pickupDropPoints?.[(targetRide?.pickupDropPoints?.length || 1) - 1]?.point || targetRide?.to,
       totalSharedContribution: totalCost,
       status: 'pending',
       requestedAt: new Date().toISOString(),
