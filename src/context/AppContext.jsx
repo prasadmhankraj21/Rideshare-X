@@ -57,9 +57,19 @@ export const AppProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
   });
 
+  // Admin authentication state (session-based)
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() => {
+    return sessionStorage.getItem('ridesharex_admin_auth') === 'true';
+  });
+
   // Current session role: 'guest' | 'driver' | 'passenger' | 'admin'
   const [currentRole, setCurrentRole] = useState(() => {
-    return localStorage.getItem(STORAGE_KEYS.ROLE) || 'guest';
+    const saved = localStorage.getItem(STORAGE_KEYS.ROLE);
+    if (saved === 'admin') {
+      const isAuth = sessionStorage.getItem('ridesharex_admin_auth') === 'true';
+      return isAuth ? 'admin' : 'guest';
+    }
+    return saved || 'guest';
   });
 
   // Current logged in user ID
@@ -142,23 +152,32 @@ export const AppProvider = ({ children }) => {
 
   // Switch role and set user
   const switchRole = (newRole, targetUserId = null) => {
-    setCurrentRole(newRole);
     if (newRole === 'driver') {
+      setCurrentRole('driver');
       const selectedDriver = targetUserId
         ? drivers.find(d => d.id === targetUserId)
         : drivers[0];
       setCurrentUserId(selectedDriver?.id || 'drv-1');
       setActiveTab('driver_dashboard');
     } else if (newRole === 'passenger') {
+      setCurrentRole('passenger');
       const selectedPassenger = targetUserId
         ? passengers.find(p => p.id === targetUserId)
         : passengers[0];
       setCurrentUserId(selectedPassenger?.id || 'psg-1');
       setActiveTab('passenger_dashboard');
     } else if (newRole === 'admin') {
-      setCurrentUserId(admin.id);
-      setActiveTab('admin_dashboard');
+      if (isAdminAuthenticated) {
+        setCurrentRole('admin');
+        setCurrentUserId(admin.id);
+        setActiveTab('admin_dashboard');
+      } else {
+        // Strict guard: Do NOT assign admin role! Redirect to password login screen
+        setActiveTab('admin_auth');
+        triggerToast('Admin Authentication Required', 'Please enter administrator password to access the panel.', 'warning');
+      }
     } else {
+      setCurrentRole('guest');
       setActiveTab('home');
     }
   };
@@ -179,17 +198,34 @@ export const AppProvider = ({ children }) => {
     triggerToast('Passenger Login Successful', 'Welcome to your Passenger Dashboard', 'success');
   };
 
-  // Authenticate admin
-  const loginAdmin = () => {
-    setCurrentRole('admin');
-    setCurrentUserId(admin.id);
-    setActiveTab('admin_dashboard');
-    triggerToast('Admin Logged In', 'Administrative Control Panel is active', 'success');
+  // Authenticate admin with credentials validation
+  const loginAdmin = (inputEmail, inputPassword) => {
+    const validEmails = ['admin@ridesharex.org', 'admin@ecoride.org', 'admin@rideshare.org'];
+    const validPasswords = ['admin123', 'Admin@2026', 'RideshareX#Admin'];
+
+    if (
+      validEmails.includes(inputEmail?.trim().toLowerCase()) &&
+      validPasswords.includes(inputPassword?.trim())
+    ) {
+      setCurrentRole('admin');
+      setCurrentUserId(admin.id);
+      setIsAdminAuthenticated(true);
+      sessionStorage.setItem('ridesharex_admin_auth', 'true');
+      setActiveTab('admin_dashboard');
+      triggerToast('Admin Logged In', 'Administrative Control Panel is active', 'success');
+      return { success: true };
+    } else {
+      triggerToast('Access Denied', 'Invalid administrator credentials. Access restricted.', 'error');
+      return { success: false, error: 'Invalid admin email or password.' };
+    }
   };
 
   // Sign out
   const logout = () => {
     setCurrentRole('guest');
+    setIsAdminAuthenticated(false);
+    sessionStorage.removeItem('ridesharex_admin_auth');
+    localStorage.removeItem(STORAGE_KEYS.ROLE);
     setActiveTab('home');
     triggerToast('Signed Out', 'You have been signed out safely.', 'info');
   };
@@ -831,6 +867,7 @@ export const AppProvider = ({ children }) => {
         bookings,
         cancellations,
         notifications,
+        isAdminAuthenticated,
         currentRole,
         currentUser,
         currentUserId,

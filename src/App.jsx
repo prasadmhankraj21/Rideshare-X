@@ -74,12 +74,18 @@ export function AppContent() {
           activeTab === 'search_rides' ||
           activeTab === 'my_bookings') && <PassengerDashboard />}
 
-        {/* Admin Area */}
+        {/* Admin Area (Strictly Protected: Requires verified admin role) */}
         {(activeTab === 'admin_dashboard' ||
           activeTab === 'admin_verifications' ||
           activeTab === 'admin_users' ||
           activeTab === 'admin_rides' ||
-          activeTab === 'admin_cancellations') && <AdminDashboard />}
+          activeTab === 'admin_cancellations') && (
+          currentRole === 'admin' ? (
+            <AdminDashboard />
+          ) : (
+            <AdminAuth restrictedNotice={true} />
+          )
+        )}
 
         {/* Standalone Active Ride Live GPS Screen */}
         {activeTab === 'active_ride' && (
@@ -115,50 +121,6 @@ export function AppContent() {
         {activeTab === 'profile' && <ProfileView />}
       </main>
 
-      {/* Floating Bottom Quick-Switcher for Demonstration */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-slate-900/90 backdrop-blur-md text-white px-4 py-2.5 rounded-full shadow-2xl border border-slate-700 flex items-center gap-2 text-xs font-bold">
-        <span className="text-[11px] text-slate-400 hidden sm:inline-block">Demonstrate Role:</span>
-
-        <button
-          onClick={() => switchRole('driver')}
-          className={`px-3 py-1 rounded-full transition flex items-center gap-1.5 ${
-            currentRole === 'driver' ? 'bg-emerald-500 text-slate-950 font-black' : 'text-slate-300 hover:text-white'
-          }`}
-        >
-          <Car className="w-3.5 h-3.5" />
-          Driver
-        </button>
-
-        <button
-          onClick={() => switchRole('passenger')}
-          className={`px-3 py-1 rounded-full transition flex items-center gap-1.5 ${
-            currentRole === 'passenger' ? 'bg-teal-500 text-slate-950 font-black' : 'text-slate-300 hover:text-white'
-          }`}
-        >
-          <User className="w-3.5 h-3.5" />
-          Passenger
-        </button>
-
-        <button
-          onClick={() => switchRole('admin')}
-          className={`px-3 py-1 rounded-full transition flex items-center gap-1.5 ${
-            currentRole === 'admin' ? 'bg-indigo-500 text-slate-950 font-black' : 'text-slate-300 hover:text-white'
-          }`}
-        >
-          <ShieldCheck className="w-3.5 h-3.5" />
-          Admin
-        </button>
-
-        <button
-          onClick={() => switchRole('guest')}
-          className={`px-3 py-1 rounded-full transition ${
-            currentRole === 'guest' ? 'bg-white text-slate-900' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          Public
-        </button>
-      </div>
-
       {/* Trust & Safety Platform Footer */}
       <footer className="bg-white border-t border-slate-200 mt-16 pt-12 pb-16 text-xs text-slate-600">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
@@ -193,8 +155,8 @@ export function AppContent() {
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => switchRole('admin')} className="hover:text-emerald-700">
-                    Admin Verification Panel
+                  <button onClick={() => setActiveTab('admin_auth')} className="hover:text-emerald-700">
+                    Admin Portal (Staff Only)
                   </button>
                 </li>
                 <li>

@@ -139,17 +139,15 @@ export const Navbar = () => {
             <User className="w-3.5 h-3.5" />
             Passenger Area
           </button>
-          <button
-            onClick={() => switchRole('admin')}
-            className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
-              currentRole === 'admin'
-                ? 'bg-indigo-600 text-white shadow-sm font-bold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            Admin Panel
-          </button>
+          {currentRole === 'admin' && (
+            <button
+              onClick={() => setActiveTab('admin_dashboard')}
+              className="px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 bg-indigo-600 text-white shadow-sm font-bold"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Admin Panel
+            </button>
+          )}
         </div>
 
         {/* Navigation Links based on role */}
@@ -514,15 +512,17 @@ export const Navbar = () => {
             >
               Passenger Area
             </button>
-            <button
-              onClick={() => {
-                switchRole('admin');
-                setMobileMenuOpen(false);
-              }}
-              className="py-2 px-3 rounded-xl bg-indigo-100 text-indigo-800 text-center font-bold"
-            >
-              Admin Panel
-            </button>
+            {currentRole === 'admin' && (
+              <button
+                onClick={() => {
+                  setActiveTab('admin_dashboard');
+                  setMobileMenuOpen(false);
+                }}
+                className="py-2 px-3 rounded-xl bg-indigo-100 text-indigo-800 text-center font-bold"
+              >
+                Admin Panel
+              </button>
+            )}
           </div>
 
           <div className="space-y-1 text-sm font-semibold text-slate-700">
