@@ -19,7 +19,16 @@ import {
   setInitialAdminPassword,
   updateAdminPassword
 } from '../services/adminAuthService';
-import { isSupabaseConfigured } from '../services/supabaseClient';
+import {
+  isSupabaseConfigured,
+  supabaseSignUpDriver,
+  supabaseSignUpPassenger,
+  supabaseSignInUser,
+  supabaseSaveRide,
+  supabaseFetchAllRides,
+  getRealUsers,
+  getRealRides
+} from '../services/supabaseClient';
 
 const AppContext = createContext(null);
 
@@ -36,25 +45,49 @@ const STORAGE_KEYS = {
 };
 
 export const AppProvider = ({ children }) => {
-  // Load from localStorage or fallback to initial data - strictly sanitized to prevent privilege escalation
+  // Load drivers from localStorage, merged with registered real users, sanitized
   const [drivers, setDrivers] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.DRIVERS);
     const raw = saved ? JSON.parse(saved) : INITIAL_DRIVERS;
-    return enforceSingleAdminRole(raw, []).drivers;
+    const realDrivers = getRealUsers().filter(u => u.role === 'driver');
+    const combined = [...realDrivers];
+    for (const d of raw) {
+      if (!combined.some(c => c.id === d.id)) {
+        combined.push(d);
+      }
+    }
+    return enforceSingleAdminRole(combined, []).drivers;
   });
 
+  // Load passengers from localStorage, merged with registered real users, sanitized
   const [passengers, setPassengers] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.PASSENGERS);
     const raw = saved ? JSON.parse(saved) : INITIAL_PASSENGERS;
-    return enforceSingleAdminRole([], raw).passengers;
+    const realPassengers = getRealUsers().filter(u => u.role === 'passenger');
+    const combined = [...realPassengers];
+    for (const p of raw) {
+      if (!combined.some(c => c.id === p.id)) {
+        combined.push(p);
+      }
+    }
+    return enforceSingleAdminRole([], combined).passengers;
   });
 
   // Exactly one permanent designated admin account
   const [admin] = useState(DESIGNATED_ADMIN);
 
+  // Load rides merged with real driver rides
   const [rides, setRides] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.RIDES);
-    return saved ? JSON.parse(saved) : INITIAL_RIDES;
+    const raw = saved ? JSON.parse(saved) : INITIAL_RIDES;
+    const realRides = getRealRides();
+    const combined = [...realRides];
+    for (const r of raw) {
+      if (!combined.some(c => c.id === r.id)) {
+        combined.push(r);
+      }
+    }
+    return combined;
   });
 
   const [bookings, setBookings] = useState(() => {
@@ -95,9 +128,10 @@ export const AppProvider = ({ children }) => {
     return saved || 'guest';
   });
 
-  // Current logged in user ID
+  // Current logged in user ID - strictly null when unauthenticated, NEVER default to demo account!
   const [currentUserId, setCurrentUserId] = useState(() => {
-    return localStorage.getItem(STORAGE_KEYS.USER_ID) || 'drv-1';
+    const savedId = localStorage.getItem(STORAGE_KEYS.USER_ID);
+    return savedId && savedId !== 'null' ? savedId : null;
   });
 
   // Active navigation tab
@@ -144,23 +178,49 @@ export const AppProvider = ({ children }) => {
   }, [currentRole]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.USER_ID, currentUserId);
+    if (currentUserId) {
+      localStorage.setItem(STORAGE_KEYS.USER_ID, currentUserId);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.USER_ID);
+    }
   }, [currentUserId]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ACTIVE_TAB, activeTab);
   }, [activeTab]);
 
-  // Derived current user object
+  // Sync rides from Supabase if configured
+  useEffect(() => {
+    if (isSupabaseConfigured()) {
+      supabaseFetchAllRides().then(remoteRides => {
+        if (remoteRides && remoteRides.length > 0) {
+          setRides(prev => {
+            const combined = [...remoteRides];
+            for (const r of prev) {
+              if (!combined.some(c => c.id === r.id)) {
+                combined.push(r);
+              }
+            }
+            return combined;
+          });
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
+  // Derived current user object - strictly isolated, NO demo fallback for logged in users!
   const currentUser = React.useMemo(() => {
     if (currentRole === 'driver') {
-      return drivers.find(d => d.id === currentUserId) || drivers[0];
+      if (!currentUserId) return null;
+      return drivers.find(d => d.id === currentUserId) || null;
     }
     if (currentRole === 'passenger') {
-      return passengers.find(p => p.id === currentUserId) || passengers[0];
+      if (!currentUserId) return null;
+      return passengers.find(p => p.id === currentUserId) || null;
     }
     if (currentRole === 'admin') {
-      return admin;
+      const validation = validateAdminToken();
+      return validation.authorized ? admin : null;
     }
     return null;
   }, [currentRole, currentUserId, drivers, passengers, admin]);
@@ -177,17 +237,15 @@ export const AppProvider = ({ children }) => {
   const switchRole = (newRole, targetUserId = null) => {
     if (newRole === 'driver') {
       setCurrentRole('driver');
-      const selectedDriver = targetUserId
-        ? drivers.find(d => d.id === targetUserId)
-        : drivers[0];
-      setCurrentUserId(selectedDriver?.id || 'drv-1');
+      if (targetUserId) {
+        setCurrentUserId(targetUserId);
+      }
       setActiveTab('driver_dashboard');
     } else if (newRole === 'passenger') {
       setCurrentRole('passenger');
-      const selectedPassenger = targetUserId
-        ? passengers.find(p => p.id === targetUserId)
-        : passengers[0];
-      setCurrentUserId(selectedPassenger?.id || 'psg-1');
+      if (targetUserId) {
+        setCurrentUserId(targetUserId);
+      }
       setActiveTab('passenger_dashboard');
     } else if (newRole === 'admin') {
       const validation = validateAdminToken();
@@ -207,7 +265,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Authenticate driver
+  // Authenticate driver by ID (used for 1-click test profiles)
   const loginDriver = (driverId) => {
     setCurrentRole('driver');
     setCurrentUserId(driverId);
@@ -215,12 +273,76 @@ export const AppProvider = ({ children }) => {
     triggerToast('Driver Login Successful', 'Welcome to your Driver Dashboard', 'success');
   };
 
-  // Authenticate passenger
+  // Authenticate passenger by ID (used for 1-click test profiles)
   const loginPassenger = (passengerId) => {
     setCurrentRole('passenger');
     setCurrentUserId(passengerId);
     setActiveTab('passenger_dashboard');
     triggerToast('Passenger Login Successful', 'Welcome to your Passenger Dashboard', 'success');
+  };
+
+  // Register Driver (Real Supabase Auth + Database)
+  const registerDriver = async ({ email, password, name, phone, city }) => {
+    const res = await supabaseSignUpDriver({ email, password, fullName: name, phone, city });
+    if (!res.success) {
+      triggerToast('Registration Failed', res.error, 'error');
+      return { success: false, error: res.error };
+    }
+
+    setDrivers(prev => [res.user, ...prev.filter(d => d.id !== res.user.id)]);
+    setCurrentRole('driver');
+    setCurrentUserId(res.user.id);
+    setActiveTab('driver_dashboard');
+    triggerToast('Account Created', `Welcome, ${res.user.name}! Your car owner profile is active.`, 'success');
+    return { success: true, user: res.user };
+  };
+
+  // Login Driver with credentials (Real Supabase Auth + Database)
+  const loginDriverWithCredentials = async (email, password) => {
+    const res = await supabaseSignInUser({ email, password, expectedRole: 'driver' });
+    if (!res.success) {
+      triggerToast('Sign In Failed', res.error, 'error');
+      return { success: false, error: res.error };
+    }
+
+    setDrivers(prev => [res.user, ...prev.filter(d => d.id !== res.user.id)]);
+    setCurrentRole('driver');
+    setCurrentUserId(res.user.id);
+    setActiveTab('driver_dashboard');
+    triggerToast('Driver Sign In Successful', `Welcome back, ${res.user.name}!`, 'success');
+    return { success: true, user: res.user };
+  };
+
+  // Register Passenger (Real Supabase Auth + Database)
+  const registerPassenger = async ({ email, password, name, phone }) => {
+    const res = await supabaseSignUpPassenger({ email, password, fullName: name, phone });
+    if (!res.success) {
+      triggerToast('Registration Failed', res.error, 'error');
+      return { success: false, error: res.error };
+    }
+
+    setPassengers(prev => [res.user, ...prev.filter(p => p.id !== res.user.id)]);
+    setCurrentRole('passenger');
+    setCurrentUserId(res.user.id);
+    setActiveTab('passenger_dashboard');
+    triggerToast('Account Created', `Welcome, ${res.user.name}! You can now book rides.`, 'success');
+    return { success: true, user: res.user };
+  };
+
+  // Login Passenger with credentials (Real Supabase Auth + Database)
+  const loginPassengerWithCredentials = async (email, password) => {
+    const res = await supabaseSignInUser({ email, password, expectedRole: 'passenger' });
+    if (!res.success) {
+      triggerToast('Sign In Failed', res.error, 'error');
+      return { success: false, error: res.error };
+    }
+
+    setPassengers(prev => [res.user, ...prev.filter(p => p.id !== res.user.id)]);
+    setCurrentRole('passenger');
+    setCurrentUserId(res.user.id);
+    setActiveTab('passenger_dashboard');
+    triggerToast('Passenger Sign In Successful', `Welcome back, ${res.user.name}!`, 'success');
+    return { success: true, user: res.user };
   };
 
   // Authenticate admin strictly against designated administrator account
@@ -272,7 +394,9 @@ export const AppProvider = ({ children }) => {
     revokeAdminToken();
     setIsAdminAuthenticated(false);
     setCurrentRole('guest');
+    setCurrentUserId(null);
     localStorage.removeItem(STORAGE_KEYS.ROLE);
+    localStorage.removeItem(STORAGE_KEYS.USER_ID);
     setActiveTab('home');
     triggerToast('Signed Out', 'You have been signed out safely.', 'info');
   };
@@ -442,14 +566,19 @@ export const AppProvider = ({ children }) => {
 
   // Create Ride (Driver only)
   const createRide = (ridePayload) => {
+    if (!currentUser) {
+      triggerToast('Authentication Required', 'Please sign in to publish a ride.', 'error');
+      return null;
+    }
+
     const newRideId = `ride-${Date.now()}`;
     const newRide = {
       id: newRideId,
       driverId: currentUser.id,
       driverName: currentUser.name,
-      driverAvatar: currentUser.avatar,
+      driverAvatar: currentUser.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser.name)}`,
       driverRating: currentUser.rating || 5.0,
-      driverVerified: currentUser.verificationStatus === 'verified',
+      driverVerified: true,
       from: ridePayload.from,
       to: ridePayload.to,
       fromCoordinates: ridePayload.fromCoordinates || [18.4088, 76.5604],
@@ -459,7 +588,9 @@ export const AppProvider = ({ children }) => {
       estimatedArrivalTime: ridePayload.estimatedArrivalTime,
       estimatedDuration: ridePayload.estimatedDuration || '4h 30m',
       vehicleType: ridePayload.vehicleType || '5-Seater',
-      vehicleDetails: `${currentUser.vehicle?.make || 'Car'} ${currentUser.vehicle?.model || ''} • ${currentUser.vehicle?.plateNumber || 'MH-12-PQ-9876'}`,
+      vehicleDetails: currentUser.vehicle
+        ? `${currentUser.vehicle.make || 'Car'} ${currentUser.vehicle.model || ''} • ${currentUser.vehicle.plateNumber || 'MH-12-REG'}`
+        : `${ridePayload.vehicleType || 'Car'} • MH-12-REG`,
       totalSeats: parseInt(ridePayload.totalSeats || 5),
       availableSeats: parseInt(ridePayload.availableSeats || 2),
       totalPassengerSeatsAllowed: parseInt(ridePayload.availableSeats || 2),
@@ -483,6 +614,7 @@ export const AppProvider = ({ children }) => {
     };
 
     setRides(prev => [newRide, ...prev]);
+    supabaseSaveRide(newRide);
 
     // Notification
     const newNotif = {
@@ -925,7 +1057,7 @@ export const AppProvider = ({ children }) => {
     setCancellations(INITIAL_CANCELLATIONS);
     setNotifications(INITIAL_NOTIFICATIONS);
     setCurrentRole('guest');
-    setCurrentUserId('drv-1');
+    setCurrentUserId(null);
     setActiveTab('home');
     setRouteDeviationTriggered(false);
     setRouteOptimizationApplied(false);
@@ -956,6 +1088,10 @@ export const AppProvider = ({ children }) => {
         switchRole,
         loginDriver,
         loginPassenger,
+        registerDriver,
+        loginDriverWithCredentials,
+        registerPassenger,
+        loginPassengerWithCredentials,
         loginAdmin,
         logout,
         submitDriverVerification,

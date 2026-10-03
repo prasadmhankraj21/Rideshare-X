@@ -28,7 +28,8 @@ export const SearchRidesPage = () => {
     switchRole,
     triggerToast,
     globalSearch,
-    setGlobalSearch
+    setGlobalSearch,
+    setActiveTab
   } = useApp();
 
   // Search filter states (synced with globalSearch if present)
@@ -51,7 +52,7 @@ export const SearchRidesPage = () => {
   const [seatsToBook, setSeatsToBook] = useState(1);
   const [pickupNotes, setPickupNotes] = useState('');
   const [bookingPassengerName, setBookingPassengerName] = useState(
-    currentUser?.role === 'passenger' ? currentUser.name : 'Priya Mehta'
+    currentUser?.role === 'passenger' ? currentUser.name : ''
   );
 
   const POPULAR_ORIGINS = ['Latur', 'Pune', 'Mumbai', 'Bengaluru'];
@@ -93,9 +94,12 @@ export const SearchRidesPage = () => {
       return;
     }
 
-    // If currently a guest, switch to passenger role to record booking
-    if (currentRole !== 'passenger') {
-      switchRole('passenger', 'psg-1');
+    // Require passenger account
+    if (currentRole !== 'passenger' || !currentUser) {
+      triggerToast('Sign In Required', 'Please sign in or create a passenger account to book rides.', 'info');
+      setActiveTab('passenger_auth');
+      setSelectedRide(null);
+      return;
     }
 
     requestBooking(

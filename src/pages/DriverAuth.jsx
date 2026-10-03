@@ -3,30 +3,55 @@ import { Car, ShieldCheck, ArrowRight, UserPlus, LogIn, CheckCircle2, AlertTrian
 import { useApp } from '../context/AppContext';
 
 export const DriverAuth = () => {
-  const { drivers, loginDriver, switchRole, triggerToast } = useApp();
+  const { drivers, loginDriver, registerDriver, loginDriverWithCredentials, triggerToast } = useApp();
   const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
 
   // Form states
-  const [email, setEmail] = useState('rajesh.driver@ridesharex.org');
-  const [password, setPassword] = useState('driver123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isSignUp) {
-      triggerToast('Account Created', 'Driver account registered! Please complete vehicle verification.', 'success');
-      loginDriver('drv-4'); // Sameer Kulkarni (unverified)
-    } else {
-      // Find matching driver or default to drv-1
-      const found = drivers.find((d) => d.email.toLowerCase() === email.toLowerCase());
-      if (found) {
-        loginDriver(found.id);
+    setAuthError('');
+    setLoading(true);
+
+    try {
+      if (isSignUp) {
+        if (!name.trim() || !phone.trim() || !city.trim()) {
+          setAuthError('Please fill in all required fields.');
+          setLoading(false);
+          return;
+        }
+        if (password.length < 6) {
+          setAuthError('Password must be at least 6 characters long.');
+          setLoading(false);
+          return;
+        }
+        const res = await registerDriver({ email, password, name, phone, city });
+        if (!res.success) {
+          setAuthError(res.error || 'Failed to register driver account.');
+        }
       } else {
-        loginDriver('drv-1');
+        const res = await loginDriverWithCredentials(email, password);
+        if (!res.success) {
+          setAuthError(res.error || 'Invalid email or password.');
+        }
       }
+    } catch (err) {
+      setAuthError(err.message || 'An error occurred during authentication.');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const toggleMode = (signUp) => {
+    setIsSignUp(signUp);
+    setAuthError('');
   };
 
   return (
@@ -53,7 +78,7 @@ export const DriverAuth = () => {
         <div className="flex bg-slate-100 p-1 rounded-2xl text-xs font-bold text-slate-600">
           <button
             type="button"
-            onClick={() => setIsSignUp(false)}
+            onClick={() => toggleMode(false)}
             className={`flex-1 py-2.5 rounded-xl transition ${
               !isSignUp ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
             }`}
@@ -62,7 +87,7 @@ export const DriverAuth = () => {
           </button>
           <button
             type="button"
-            onClick={() => setIsSignUp(true)}
+            onClick={() => toggleMode(true)}
             className={`flex-1 py-2.5 rounded-xl transition ${
               isSignUp ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
             }`}
@@ -70,6 +95,13 @@ export const DriverAuth = () => {
             New Driver Registration
           </button>
         </div>
+
+        {authError && (
+          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-medium rounded-xl flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
+            <span>{authError}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {isSignUp && (
@@ -139,10 +171,21 @@ export const DriverAuth = () => {
 
           <button
             type="submit"
-            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-2 transition"
+            disabled={loading}
+            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
           >
-            {isSignUp ? <UserPlus className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
-            {isSignUp ? 'Register & Continue to Verification' : 'Sign In to Driver Dashboard'}
+            {loading ? (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : isSignUp ? (
+              <UserPlus className="w-4 h-4" />
+            ) : (
+              <LogIn className="w-4 h-4" />
+            )}
+            {loading
+              ? 'Authenticating...'
+              : isSignUp
+              ? 'Register & Continue to Dashboard'
+              : 'Sign In to Driver Dashboard'}
           </button>
         </form>
 
