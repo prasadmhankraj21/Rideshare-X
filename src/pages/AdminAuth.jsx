@@ -6,10 +6,12 @@ import { PROVISIONING_MASTER_KEY, hasAdminPasswordSet } from '../services/adminA
 export const AdminAuth = ({ restrictedNotice = false }) => {
   const { loginAdmin, setupAdminPassword, setActiveTab } = useApp();
 
-  // One-time master setup is ONLY accessible if secret provisioning key is present in the URL query
+  // One-time master setup or reset is accessible if secret provisioning key is present
   const queryParams = new URLSearchParams(window.location.search);
-  const hasSecretKey = queryParams.get('key') === PROVISIONING_MASTER_KEY;
-  const isSetupRequested = hasSecretKey && !hasAdminPasswordSet();
+  const hashQuery = window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '';
+  const hashParams = new URLSearchParams(hashQuery);
+  const hasSecretKey = queryParams.get('key') === PROVISIONING_MASTER_KEY || hashParams.get('key') === PROVISIONING_MASTER_KEY;
+  const isSetupRequested = hasSecretKey;
 
   const [email, setEmail] = useState('prasadmhankraj21@gmail.com');
   const [password, setPassword] = useState('');
@@ -48,7 +50,7 @@ export const AdminAuth = ({ restrictedNotice = false }) => {
       return;
     }
 
-    const result = await setupAdminPassword(email, password, confirmPassword);
+    const result = await setupAdminPassword(email, password, confirmPassword, PROVISIONING_MASTER_KEY);
     if (!result?.success) {
       setErrorMessage(result?.error || 'Password setup failed.');
     } else {

@@ -474,8 +474,8 @@ export const AppProvider = ({ children }) => {
   };
 
   // Set initial master admin password (PBKDF2 salted hash / Supabase)
-  const setupAdminPassword = async (email, password, confirmPassword) => {
-    const result = await setInitialAdminPassword(email, password, confirmPassword);
+  const setupAdminPassword = async (email, password, confirmPassword, provisioningKey = null) => {
+    const result = await setInitialAdminPassword(email, password, confirmPassword, provisioningKey);
     if (result.success) {
       setCurrentRole('admin');
       setCurrentUserId(DESIGNATED_ADMIN.id);
