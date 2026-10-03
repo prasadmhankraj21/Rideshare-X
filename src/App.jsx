@@ -13,6 +13,7 @@ import { ProfileView } from './pages/ProfileView';
 import { SearchRidesPage } from './pages/SearchRidesPage';
 import { LiveTrackingMap } from './components/LiveTrackingMap';
 import { ProtectedAdminRoute } from './components/ProtectedAdminRoute';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { validateAdminToken } from './services/adminAuthService';
 import {
   Car,
@@ -275,8 +276,8 @@ export function AppContent() {
 
 export default function App() {
   return (
-    <React.StrictMode>
+    <ErrorBoundary>
       <AppContent />
-    </React.StrictMode>
+    </ErrorBoundary>
   );
 }

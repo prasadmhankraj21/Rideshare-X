@@ -48,30 +48,38 @@ const STORAGE_KEYS = {
 export const AppProvider = ({ children }) => {
   // Load drivers from localStorage, merged with registered real users, sanitized
   const [drivers, setDrivers] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.DRIVERS);
-    const raw = saved ? JSON.parse(saved) : INITIAL_DRIVERS;
-    const realDrivers = getRealUsers().filter(u => u.role === 'driver');
-    const combined = [...realDrivers];
-    for (const d of raw) {
-      if (!combined.some(c => c.id === d.id)) {
-        combined.push(d);
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.DRIVERS);
+      const raw = saved ? JSON.parse(saved) : INITIAL_DRIVERS;
+      const realDrivers = getRealUsers().filter(u => u.role === 'driver');
+      const combined = [...realDrivers];
+      for (const d of raw) {
+        if (!combined.some(c => c.id === d.id)) {
+          combined.push(d);
+        }
       }
+      return enforceSingleAdminRole(combined, []).drivers;
+    } catch {
+      return enforceSingleAdminRole(INITIAL_DRIVERS, []).drivers;
     }
-    return enforceSingleAdminRole(combined, []).drivers;
   });
 
   // Load passengers from localStorage, merged with registered real users, sanitized
   const [passengers, setPassengers] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.PASSENGERS);
-    const raw = saved ? JSON.parse(saved) : INITIAL_PASSENGERS;
-    const realPassengers = getRealUsers().filter(u => u.role === 'passenger');
-    const combined = [...realPassengers];
-    for (const p of raw) {
-      if (!combined.some(c => c.id === p.id)) {
-        combined.push(p);
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.PASSENGERS);
+      const raw = saved ? JSON.parse(saved) : INITIAL_PASSENGERS;
+      const realPassengers = getRealUsers().filter(u => u.role === 'passenger');
+      const combined = [...realPassengers];
+      for (const p of raw) {
+        if (!combined.some(c => c.id === p.id)) {
+          combined.push(p);
+        }
       }
+      return enforceSingleAdminRole([], combined).passengers;
+    } catch {
+      return enforceSingleAdminRole([], INITIAL_PASSENGERS).passengers;
     }
-    return enforceSingleAdminRole([], combined).passengers;
   });
 
   // Exactly one permanent designated admin account
@@ -102,18 +110,30 @@ export const AppProvider = ({ children }) => {
   });
 
   const [bookings, setBookings] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
-    return saved ? JSON.parse(saved) : INITIAL_BOOKINGS;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
+      return saved ? JSON.parse(saved) : INITIAL_BOOKINGS;
+    } catch {
+      return INITIAL_BOOKINGS;
+    }
   });
 
   const [cancellations, setCancellations] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CANCELLATIONS);
-    return saved ? JSON.parse(saved) : INITIAL_CANCELLATIONS;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CANCELLATIONS);
+      return saved ? JSON.parse(saved) : INITIAL_CANCELLATIONS;
+    } catch {
+      return INITIAL_CANCELLATIONS;
+    }
   });
 
   const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+      return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
+    } catch {
+      return INITIAL_NOTIFICATIONS;
+    }
   });
 
   // Admin authentication state (strictly verified via signed token)

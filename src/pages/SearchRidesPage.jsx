@@ -33,6 +33,13 @@ export const SearchRidesPage = () => {
     refreshRides
   } = useApp();
 
+  // Search filter states (synced with globalSearch if present)
+  const [searchFrom, setSearchFrom] = useState(globalSearch?.from || '');
+  const [searchTo, setSearchTo] = useState(globalSearch?.to || '');
+  const [searchDate, setSearchDate] = useState(globalSearch?.date || '');
+  const [searchSeats, setSearchSeats] = useState(globalSearch?.seats || 1);
+  const [onlyVerified, setOnlyVerified] = useState(false);
+
   // Fetch latest real published rides on mount and whenever search parameters change
   React.useEffect(() => {
     if (refreshRides) {
@@ -45,13 +52,6 @@ export const SearchRidesPage = () => {
       });
     }
   }, [searchFrom, searchTo, searchDate, searchSeats, onlyVerified]);
-
-  // Search filter states (synced with globalSearch if present)
-  const [searchFrom, setSearchFrom] = useState(globalSearch?.from || '');
-  const [searchTo, setSearchTo] = useState(globalSearch?.to || '');
-  const [searchDate, setSearchDate] = useState(globalSearch?.date || '');
-  const [searchSeats, setSearchSeats] = useState(globalSearch?.seats || 1);
-  const [onlyVerified, setOnlyVerified] = useState(false);
 
   // Sync if globalSearch updates externally
   React.useEffect(() => {

@@ -39,6 +39,13 @@ export const PassengerDashboard = () => {
     refreshRides
   } = useApp();
 
+  const [activePassengerTab, setActivePassengerTab] = useState('browse'); // 'browse' | 'search' | 'my_bookings' | 'active_ride' | 'history'
+  const [searchFrom, setSearchFrom] = useState('');
+  const [searchTo, setSearchTo] = useState('');
+  const [searchDate, setSearchDate] = useState('');
+  const [searchSeatsCount, setSearchSeatsCount] = useState(1);
+  const [onlyVerifiedDrivers, setOnlyVerifiedDrivers] = useState(false);
+
   // Fetch latest real published rides on mount and whenever search parameters change
   React.useEffect(() => {
     if (refreshRides) {
@@ -50,13 +57,6 @@ export const PassengerDashboard = () => {
       });
     }
   }, [searchFrom, searchTo, searchDate, onlyVerifiedDrivers]);
-
-  const [activePassengerTab, setActivePassengerTab] = useState('browse'); // 'browse' | 'search' | 'my_bookings' | 'active_ride' | 'history'
-  const [searchFrom, setSearchFrom] = useState('');
-  const [searchTo, setSearchTo] = useState('');
-  const [searchDate, setSearchDate] = useState('');
-  const [searchSeatsCount, setSearchSeatsCount] = useState(1);
-  const [onlyVerifiedDrivers, setOnlyVerifiedDrivers] = useState(false);
 
   // Selected ride for details & booking modal
   const [detailModalOpen, setDetailModalOpen] = useState(false);
