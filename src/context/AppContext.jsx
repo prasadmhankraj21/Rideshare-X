@@ -14,8 +14,12 @@ import {
   validateAdminToken,
   revokeAdminToken,
   authorizeAdminOperation,
-  enforceSingleAdminRole
+  enforceSingleAdminRole,
+  hasAdminPasswordSet,
+  setInitialAdminPassword,
+  updateAdminPassword
 } from '../services/adminAuthService';
+import { isSupabaseConfigured } from '../services/supabaseClient';
 
 const AppContext = createContext(null);
 
@@ -220,8 +224,8 @@ export const AppProvider = ({ children }) => {
   };
 
   // Authenticate admin strictly against designated administrator account
-  const loginAdmin = (inputEmail, inputPassword) => {
-    const result = issueAdminToken(inputEmail, inputPassword);
+  const loginAdmin = async (inputEmail, inputPassword) => {
+    const result = await issueAdminToken(inputEmail, inputPassword);
     if (result.success) {
       setCurrentRole('admin');
       setCurrentUserId(DESIGNATED_ADMIN.id);
@@ -231,20 +235,35 @@ export const AppProvider = ({ children }) => {
       return { success: true };
     } else {
       triggerToast('Access Denied (403)', result.error, 'error');
+      return { success: false, error: result.error, setupRequired: result.setupRequired };
+    }
+  };
+
+  // Set initial master admin password (PBKDF2 salted hash / Supabase)
+  const setupAdminPassword = async (email, password, confirmPassword) => {
+    const result = await setInitialAdminPassword(email, password, confirmPassword);
+    if (result.success) {
+      setCurrentRole('admin');
+      setCurrentUserId(DESIGNATED_ADMIN.id);
+      setIsAdminAuthenticated(true);
+      setActiveTab('admin_dashboard');
+      triggerToast('Admin Password Configured', 'Your strong admin password has been cryptographically saved.', 'success');
+      return { success: true };
+    } else {
+      triggerToast('Setup Failed', result.error, 'error');
       return { success: false, error: result.error };
     }
   };
 
   // Update master admin credentials (protected by database authorization guard)
-  const updateAdminCredentials = (newEmail, newPassword) => {
-    const auth = authorizeAdminOperation('updateAdminCredentials');
-    if (!auth.authorized) {
-      triggerToast('403 Forbidden', auth.error, 'error');
-      return { success: false, error: auth.error };
+  const updateAdminCredentials = async (newEmail, newPassword) => {
+    const result = await updateAdminPassword(newPassword.trim());
+    if (!result.success) {
+      triggerToast('Update Failed', result.error, 'error');
+      return { success: false, error: result.error };
     }
 
-    localStorage.setItem('ridesharex_master_admin_pwd', newPassword.trim());
-    triggerToast('Master Password Updated', 'Designated administrator password has been updated.', 'success');
+    triggerToast('Master Password Updated', 'Designated administrator password has been updated securely.', 'success');
     return { success: true };
   };
 
@@ -963,6 +982,9 @@ export const AppProvider = ({ children }) => {
           id: DESIGNATED_ADMIN.id
         },
         updateAdminCredentials,
+        hasAdminPasswordSet,
+        setupAdminPassword,
+        isSupabaseConfigured,
         globalSearch,
         setGlobalSearch
       }}
