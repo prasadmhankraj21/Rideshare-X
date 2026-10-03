@@ -120,7 +120,7 @@ export const SearchRidesPage = () => {
     setSeatsToBook(1);
   };
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
     if (!selectedRide) return;
 
     if (seatsToBook > selectedRide.availableSeats) {
@@ -136,7 +136,7 @@ export const SearchRidesPage = () => {
       return;
     }
 
-    requestBooking(
+    await requestBooking(
       selectedRide.id,
       seatsToBook,
       selectedRide.pickupDropPoints[0]?.point || selectedRide.from,

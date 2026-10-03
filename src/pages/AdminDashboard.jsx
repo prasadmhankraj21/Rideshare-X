@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   Users,
@@ -36,8 +36,15 @@ export const AdminDashboard = () => {
     triggerToast,
     logout,
     adminConfig,
-    updateAdminCredentials
+    updateAdminCredentials,
+    refreshRides,
+    refreshBookings
   } = useApp();
+
+  useEffect(() => {
+    if (refreshRides) refreshRides();
+    if (refreshBookings) refreshBookings();
+  }, []);
 
   const [adminTab, setAdminTab] = useState('overview'); // 'overview' | 'verifications' | 'users' | 'rides' | 'bookings' | 'cancellations'
   const [selectedDriverForInspect, setSelectedDriverForInspect] = useState(null);

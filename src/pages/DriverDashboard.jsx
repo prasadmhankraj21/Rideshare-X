@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Car,
   PlusCircle,
@@ -42,8 +42,16 @@ export const DriverDashboard = () => {
     setActiveTab,
     selectedRideId,
     setSelectedRideId,
-    triggerToast
+    triggerToast,
+    refreshRides,
+    refreshBookings
   } = useApp();
+
+  // Refresh latest real rides and booking requests from Cloud Firestore & local storage
+  useEffect(() => {
+    if (refreshRides) refreshRides();
+    if (refreshBookings) refreshBookings();
+  }, []);
 
   const [activeDriverTab, setActiveDriverTab] = useState('overview'); // 'overview' | 'create_ride' | 'my_rides' | 'requests' | 'active_ride' | 'history' | 'verification' | 'deposit'
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
@@ -82,7 +90,7 @@ export const DriverDashboard = () => {
 
   // Filter booking requests for this driver's rides
   const driverRideIds = driverRides.map((r) => r.id);
-  const driverBookings = bookings.filter((b) => driverRideIds.includes(b.rideId));
+  const driverBookings = bookings.filter((b) => (b.driverId && b.driverId === currentUser?.id) || driverRideIds.includes(b.rideId));
   const pendingRequests = driverBookings.filter((b) => b.status === 'pending');
   const acceptedBookings = driverBookings.filter((b) => b.status === 'confirmed');
   const rejectedBookings = driverBookings.filter((b) => b.status === 'rejected');

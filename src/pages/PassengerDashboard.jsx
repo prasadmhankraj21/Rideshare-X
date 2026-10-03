@@ -36,7 +36,8 @@ export const PassengerDashboard = () => {
     selectedRideId,
     setSelectedRideId,
     triggerToast,
-    refreshRides
+    refreshRides,
+    refreshBookings
   } = useApp();
 
   const [activePassengerTab, setActivePassengerTab] = useState('browse'); // 'browse' | 'search' | 'my_bookings' | 'active_ride' | 'history'
@@ -46,8 +47,9 @@ export const PassengerDashboard = () => {
   const [searchSeatsCount, setSearchSeatsCount] = useState(1);
   const [onlyVerifiedDrivers, setOnlyVerifiedDrivers] = useState(false);
 
-  // Fetch latest real published rides on mount and whenever search parameters change
+  // Fetch latest real published rides & bookings on mount and whenever search parameters change
   React.useEffect(() => {
+    if (refreshBookings) refreshBookings();
     if (refreshRides) {
       refreshRides({
         from: searchFrom,
@@ -115,14 +117,14 @@ export const PassengerDashboard = () => {
     setDetailModalOpen(true);
   };
 
-  const handleConfirmBooking = () => {
+  const handleConfirmBooking = async () => {
     if (!activeDetailRide) return;
     if (seatsToBook > activeDetailRide.availableSeats) {
       triggerToast('Seats Unavailable', `Only ${activeDetailRide.availableSeats} seat(s) available.`, 'error');
       return;
     }
 
-    requestBooking(activeDetailRide.id, seatsToBook, activeDetailRide.pickupDropPoints[0]?.point, pickupNotes);
+    await requestBooking(activeDetailRide.id, seatsToBook, activeDetailRide.pickupDropPoints[0]?.point, pickupNotes);
     setDetailModalOpen(false);
     setActivePassengerTab('my_bookings');
   };

@@ -385,6 +385,33 @@ export const firebaseSaveBooking = async (booking) => {
 };
 
 /**
+ * Fetch all bookings from Cloud Firestore
+ */
+export const firebaseFetchAllBookings = async () => {
+  if (isFirebaseConfigured() && db) {
+    try {
+      const bookingsCol = collection(db, 'bookings');
+      const snapshot = await getDocs(bookingsCol);
+      const remoteBookings = [];
+      snapshot.forEach((docSnap) => {
+        remoteBookings.push(docSnap.data());
+      });
+
+      if (remoteBookings.length > 0) {
+        // Update local cache
+        remoteBookings.forEach((b) => saveRealBooking(b));
+        return remoteBookings;
+      }
+    } catch (err) {
+      console.warn('[Firebase Fetch Bookings Error]:', err);
+    }
+  }
+
+  // Fallback to locally cached real bookings
+  return getRealBookings();
+};
+
+/**
  * Real-time listener for bookings collection
  */
 export const subscribeToRealtimeBookings = (callback) => {
@@ -433,6 +460,11 @@ export const syncLocalDataToFirebase = async () => {
     const localUsers = getRealUsers();
     for (const u of localUsers) {
       await setDoc(doc(db, 'users', u.id), u, { merge: true });
+    }
+
+    const localBookings = getRealBookings();
+    for (const b of localBookings) {
+      await setDoc(doc(db, 'bookings', b.id), b, { merge: true });
     }
   } catch (err) {
     console.warn('[Firebase Sync Local Data Warning]:', err);

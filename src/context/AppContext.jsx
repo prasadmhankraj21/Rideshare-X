@@ -28,7 +28,9 @@ import {
   supabaseSearchRides,
   supabaseFetchAllRides,
   getRealUsers,
-  getRealRides
+  getRealRides,
+  getRealBookings,
+  saveRealBooking
 } from '../services/supabaseClient';
 import {
   isFirebaseConfigured,
@@ -37,6 +39,8 @@ import {
   firebaseSignInUser,
   firebaseSaveRide,
   firebaseFetchAllRides,
+  firebaseSaveBooking,
+  firebaseFetchAllBookings,
   subscribeToRealtimeRides,
   subscribeToRealtimeBookings,
   syncLocalDataToFirebase
@@ -122,6 +126,10 @@ export const AppProvider = ({ children }) => {
 
   const [bookings, setBookings] = useState(() => {
     try {
+      const real = getRealBookings();
+      if (real && real.length > 0) {
+        return real;
+      }
       const saved = localStorage.getItem(STORAGE_KEYS.BOOKINGS);
       return saved ? JSON.parse(saved) : INITIAL_BOOKINGS;
     } catch {
@@ -263,9 +271,31 @@ export const AppProvider = ({ children }) => {
     return local;
   };
 
-  // Sync real published rides on mount
+  // Refresh real bookings from Firebase & persistent storage
+  const refreshBookings = async () => {
+    try {
+      if (isFirebaseConfigured()) {
+        const fbBookings = await firebaseFetchAllBookings();
+        if (fbBookings && fbBookings.length > 0) {
+          setBookings(fbBookings);
+          return fbBookings;
+        }
+      }
+    } catch (e) {
+      console.warn('Error refreshing bookings:', e);
+    }
+    const local = getRealBookings();
+    if (local && local.length > 0) {
+      setBookings(local);
+      return local;
+    }
+    return bookings;
+  };
+
+  // Sync real published rides and bookings on mount
   useEffect(() => {
     refreshRides();
+    refreshBookings();
   }, []);
 
   // Real-time Cloud Firestore synchronization across any phone, laptop, or browser
@@ -289,11 +319,15 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
-  // Cross-tab synchronization so Driver publish in Tab A is immediately visible to Passenger in Tab B
+  // Cross-tab synchronization so Driver publish in Tab A is immediately visible to Passenger in Tab B,
+  // and Passenger booking in Tab B is immediately visible to Driver in Tab A!
   useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === STORAGE_KEYS.RIDES || e.key === 'ridesharex_real_rides_v1') {
         refreshRides();
+      }
+      if (e.key === STORAGE_KEYS.BOOKINGS || e.key === 'ridesharex_real_bookings_v1') {
+        refreshBookings();
       }
     };
     window.addEventListener('storage', handleStorageChange);
@@ -756,7 +790,7 @@ export const AppProvider = ({ children }) => {
   };
 
   // Passenger: Request Booking
-  const requestBooking = (rideId, seatsRequested, pickupPoint, notes) => {
+  const requestBooking = async (rideId, seatsRequested, pickupPoint, notes) => {
     const targetRide = rides.find(r => r.id === rideId);
     if (!targetRide) return;
 
@@ -771,6 +805,8 @@ export const AppProvider = ({ children }) => {
     const newBooking = {
       id: bookingId,
       rideId: rideId,
+      driverId: targetRide.driverId,
+      driverName: targetRide.driverName,
       passengerId: currentUser.id,
       passengerName: currentUser.name,
       passengerPhone: currentUser.phone,
@@ -786,7 +822,14 @@ export const AppProvider = ({ children }) => {
       notes: notes || 'Looking forward to travelling together!'
     };
 
-    setBookings(prev => [newBooking, ...prev]);
+    // Save to Firebase Cloud Firestore and persistent local storage
+    if (isFirebaseConfigured()) {
+      await firebaseSaveBooking(newBooking);
+    } else {
+      saveRealBooking(newBooking);
+    }
+
+    setBookings(prev => [newBooking, ...prev.filter(b => b.id !== newBooking.id)]);
 
     // Notify Driver
     const notifDriver = {
@@ -818,25 +861,41 @@ export const AppProvider = ({ children }) => {
   };
 
   // Driver: Accept Booking
-  const acceptBooking = (bookingId) => {
+  const acceptBooking = async (bookingId) => {
     const booking = bookings.find(b => b.id === bookingId);
     if (!booking) return;
 
+    const updatedBooking = { ...booking, status: 'confirmed', updatedAt: new Date().toISOString() };
+
     // Update booking status
     setBookings(prev =>
-      prev.map(b => (b.id === bookingId ? { ...b, status: 'confirmed' } : b))
+      prev.map(b => (b.id === bookingId ? updatedBooking : b))
     );
 
     // Decrement available seats on the ride
+    let updatedRide = null;
     setRides(prev =>
       prev.map(r => {
         if (r.id === booking.rideId) {
           const newAvailable = Math.max(0, r.availableSeats - booking.seatsRequested);
-          return { ...r, availableSeats: newAvailable };
+          updatedRide = { ...r, availableSeats: newAvailable, updatedAt: new Date().toISOString() };
+          return updatedRide;
         }
         return r;
       })
     );
+
+    if (isFirebaseConfigured()) {
+      await firebaseSaveBooking(updatedBooking);
+      if (updatedRide) {
+        await firebaseSaveRide(updatedRide);
+      }
+    } else {
+      saveRealBooking(updatedBooking);
+      if (updatedRide) {
+        saveRealRide(updatedRide);
+      }
+    }
 
     // Notify passenger
     const notifPassenger = {
@@ -855,13 +914,21 @@ export const AppProvider = ({ children }) => {
   };
 
   // Driver: Reject Booking
-  const rejectBooking = (bookingId, reason = 'Seat occupied by co-traveller') => {
+  const rejectBooking = async (bookingId, reason = 'Seat occupied by co-traveller') => {
     const booking = bookings.find(b => b.id === bookingId);
     if (!booking) return;
 
+    const updatedBooking = { ...booking, status: 'rejected', rejectReason: reason, updatedAt: new Date().toISOString() };
+
     setBookings(prev =>
-      prev.map(b => (b.id === bookingId ? { ...b, status: 'rejected', rejectReason: reason } : b))
+      prev.map(b => (b.id === bookingId ? updatedBooking : b))
     );
+
+    if (isFirebaseConfigured()) {
+      await firebaseSaveBooking(updatedBooking);
+    } else {
+      saveRealBooking(updatedBooking);
+    }
 
     const notifPassenger = {
       id: `notif-${Date.now()}`,
@@ -1050,29 +1117,45 @@ export const AppProvider = ({ children }) => {
   };
 
   // Passenger: Cancel specific booking
-  const cancelPassengerBooking = (bookingId, reasonCategory, explanation) => {
+  const cancelPassengerBooking = async (bookingId, reasonCategory, explanation) => {
     const booking = bookings.find(b => b.id === bookingId);
     if (!booking) return;
 
+    const updatedBooking = { ...booking, status: 'cancelled_by_passenger', cancelReason: reasonCategory, updatedAt: new Date().toISOString() };
+
     setBookings(prev =>
-      prev.map(b => (b.id === bookingId ? { ...b, status: 'cancelled_by_passenger', cancelReason: reasonCategory } : b))
+      prev.map(b => (b.id === bookingId ? updatedBooking : b))
     );
 
     // Release seat back to ride if ride is still scheduled
+    let updatedRide = null;
     setRides(prev =>
       prev.map(r => {
-        if (r.id === booking.rideId && r.status === 'scheduled') {
-          return { ...r, availableSeats: r.availableSeats + booking.seatsRequested };
+        if (r.id === booking.rideId && ['scheduled', 'published', 'active'].includes(r.status)) {
+          updatedRide = { ...r, availableSeats: r.availableSeats + booking.seatsRequested, updatedAt: new Date().toISOString() };
+          return updatedRide;
         }
         return r;
       })
     );
 
+    if (isFirebaseConfigured()) {
+      await firebaseSaveBooking(updatedBooking);
+      if (updatedRide) {
+        await firebaseSaveRide(updatedRide);
+      }
+    } else {
+      saveRealBooking(updatedBooking);
+      if (updatedRide) {
+        saveRealRide(updatedRide);
+      }
+    }
+
     // Notify Driver
     const targetRide = rides.find(r => r.id === booking.rideId);
     const notifDriver = {
       id: `notif-${Date.now()}-drv`,
-      targetUserId: targetRide?.driverId,
+      targetUserId: targetRide?.driverId || booking.driverId,
       role: 'driver',
       title: 'Passenger Cancelled Booking',
       message: `${booking.passengerName} cancelled their seat on ${booking.from} → ${booking.to}. Available seats updated.`,
@@ -1246,6 +1329,7 @@ export const AppProvider = ({ children }) => {
         globalSearch,
         setGlobalSearch,
         refreshRides,
+        refreshBookings,
         searchRides: supabaseSearchRides
       }}
     >
