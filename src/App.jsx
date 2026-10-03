@@ -42,6 +42,11 @@ export function AppContent() {
     rides.find((r) => r.status === 'in_progress') ||
     rides[0];
 
+  // Instantly scroll to top when changing views
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [activeTab]);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
       {/* Toast Notification Container */}

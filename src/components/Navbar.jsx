@@ -482,18 +482,31 @@ export const Navbar = () => {
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 onClick={() => setActiveTab('driver_auth')}
-                className="px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 rounded-xl transition"
+                className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 rounded-xl transition flex items-center gap-1"
               >
-                Driver Area
+                <Car className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Driver</span> Login
               </button>
               <button
                 onClick={() => setActiveTab('passenger_auth')}
-                className="px-3.5 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition"
+                className="px-2.5 sm:px-3 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition flex items-center gap-1"
               >
-                Sign In
+                <User className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Passenger</span> Login
+              </button>
+              <button
+                onClick={() => {
+                  if (isAdminAuthenticated) switchRole('admin');
+                  else setActiveTab('admin_auth');
+                }}
+                className="px-2.5 sm:px-3 py-1.5 text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm transition flex items-center gap-1 border border-slate-700"
+                title="Admin Login (Platform Owner Only)"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
+                Admin <span className="hidden sm:inline">Login</span>
               </button>
             </div>
           )}

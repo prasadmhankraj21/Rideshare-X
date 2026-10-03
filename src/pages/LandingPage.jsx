@@ -16,13 +16,22 @@ import {
   Users,
   AlertOctagon,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Lock
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { CostSharingExplainer } from '../components/CostSharingExplainer';
 
 export const LandingPage = () => {
-  const { switchRole, setActiveTab, rides, setSelectedRideId, setGlobalSearch } = useApp();
+  const {
+    switchRole,
+    setActiveTab,
+    rides,
+    setSelectedRideId,
+    setGlobalSearch,
+    isAdminAuthenticated,
+    adminConfig
+  } = useApp();
 
   const [searchFrom, setSearchFrom] = useState('');
   const [searchTo, setSearchTo] = useState('');
@@ -69,17 +78,17 @@ export const LandingPage = () => {
             Connect with verified everyday car owners traveling your way. Share empty seats, split actual fuel & highway toll expenses, and travel comfortably without taxi markups.
           </p>
 
-          {/* Primary Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+          {/* Primary 3 Action Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 max-w-3xl mx-auto w-full">
             <button
               onClick={() => {
                 switchRole('driver');
                 setActiveTab('driver_auth');
               }}
-              className="w-full sm:w-auto px-8 py-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold rounded-2xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2.5 transition text-sm sm:text-base"
+              className="px-5 py-4 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold rounded-2xl shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2 transition text-xs sm:text-sm group"
             >
-              <Car className="w-5 h-5" />
-              Continue as Driver / Car Owner
+              <Car className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <span>Driver Login / Register</span>
             </button>
 
             <button
@@ -87,10 +96,24 @@ export const LandingPage = () => {
                 switchRole('passenger');
                 setActiveTab('passenger_auth');
               }}
-              className="w-full sm:w-auto px-8 py-4 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-bold rounded-2xl shadow-lg shadow-slate-900/20 flex items-center justify-center gap-2.5 transition text-sm sm:text-base"
+              className="px-5 py-4 bg-teal-600 hover:bg-teal-700 active:scale-[0.98] text-white font-bold rounded-2xl shadow-lg shadow-teal-600/25 flex items-center justify-center gap-2 transition text-xs sm:text-sm group"
             >
-              <User className="w-5 h-5 text-emerald-400" />
-              Continue as Passenger
+              <User className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <span>Passenger Login / Register</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (isAdminAuthenticated) {
+                  switchRole('admin');
+                } else {
+                  setActiveTab('admin_auth');
+                }
+              }}
+              className="px-5 py-4 bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-bold rounded-2xl shadow-lg shadow-slate-900/25 flex items-center justify-center gap-2 transition text-xs sm:text-sm group border border-slate-700"
+            >
+              <ShieldCheck className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
+              <span>Admin Login (Owner)</span>
             </button>
           </div>
 
@@ -166,6 +189,147 @@ export const LandingPage = () => {
               </button>
             </div>
           </form>
+        </div>
+      </section>
+
+      {/* 3 Dedicated Login Portals Section */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center max-w-2xl mx-auto mb-8 space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-200 text-slate-800 text-[11px] font-bold uppercase tracking-wider">
+            Platform Access
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900">
+            3 Dedicated Login Portals
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600">
+            Separate, secure access areas designed for car owners, passengers, and platform administration.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* 1. Driver Portal */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-emerald-200 shadow-md hover:shadow-xl transition-all flex flex-col justify-between group">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                <Car className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  Car Owners
+                </span>
+                <h3 className="text-xl font-black text-slate-900 mt-1">Driver Portal</h3>
+                <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                  Already traveling on intercity routes? Verify your vehicle, publish your planned trip, share available empty seats, and recover fuel & highway toll costs.
+                </p>
+              </div>
+              <ul className="text-xs text-slate-500 space-y-1.5 pt-2">
+                <li className="flex items-center gap-2">✓ Mandatory License Verification</li>
+                <li className="flex items-center gap-2">✓ Fair Cost-Recovery Pricing</li>
+                <li className="flex items-center gap-2">✓ Refundable Escrow Deposit</li>
+              </ul>
+            </div>
+
+            <div className="pt-6 mt-6 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  switchRole('driver');
+                  setActiveTab('driver_auth');
+                }}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2"
+              >
+                <Car className="w-4 h-4" />
+                Driver Login / Register
+              </button>
+            </div>
+          </div>
+
+          {/* 2. Passenger Portal */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-teal-200 shadow-md hover:shadow-xl transition-all flex flex-col justify-between group">
+            <div className="space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-teal-100 text-teal-700 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                <User className="w-6 h-6" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">
+                  Travelers
+                </span>
+                <h3 className="text-xl font-black text-slate-900 mt-1">Passenger Portal</h3>
+                <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+                  Search intercity rides matching your departure city and time. Book verified carpool seats, view driver ratings, and track live GPS route telemetry.
+                </p>
+              </div>
+              <ul className="text-xs text-slate-500 space-y-1.5 pt-2">
+                <li className="flex items-center gap-2">✓ Zero Commercial Surge Prices</li>
+                <li className="flex items-center gap-2">✓ Live Route Deviation Telemetry</li>
+                <li className="flex items-center gap-2">✓ Full Cancellation Protection</li>
+              </ul>
+            </div>
+
+            <div className="pt-6 mt-6 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  switchRole('passenger');
+                  setActiveTab('passenger_auth');
+                }}
+                className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2"
+              >
+                <User className="w-4 h-4" />
+                Passenger Login / Register
+              </button>
+            </div>
+          </div>
+
+          {/* 3. Admin Portal (1st Registered User Locked) */}
+          <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-7 border border-slate-800 shadow-xl hover:shadow-2xl transition-all flex flex-col justify-between group relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+
+            <div className="space-y-4 relative z-10">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-950 border border-indigo-700 text-indigo-400 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300 bg-indigo-900/60 px-2 py-0.5 rounded-full border border-indigo-700">
+                    Platform Owner
+                  </span>
+                  {adminConfig?.isClaimed ? (
+                    <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                      <Lock className="w-3 h-3" /> Master Locked
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-amber-400 animate-pulse">
+                      ★ 1st User Setup Open
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-xl font-black text-white mt-1">Admin Portal</h3>
+                <p className="text-xs text-slate-300 mt-2 leading-relaxed">
+                  Strict platform oversight. The 1st person who registers claims master administrative access. All subsequent visitors cannot log in.
+                </p>
+              </div>
+              <ul className="text-xs text-slate-400 space-y-1.5 pt-2">
+                <li className="flex items-center gap-2">✓ Approve/Reject Driver Licenses</li>
+                <li className="flex items-center gap-2">✓ Resolve Cancellation Deposits</li>
+                <li className="flex items-center gap-2">✓ Exclusive 1st-User Locked Access</li>
+              </ul>
+            </div>
+
+            <div className="pt-6 mt-6 border-t border-slate-800 relative z-10">
+              <button
+                onClick={() => {
+                  if (isAdminAuthenticated) {
+                    switchRole('admin');
+                  } else {
+                    setActiveTab('admin_auth');
+                  }
+                }}
+                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                {adminConfig?.isClaimed ? 'Admin Login (Owner Only)' : '1st User Admin Setup'}
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 

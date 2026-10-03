@@ -62,16 +62,23 @@ export const AppProvider = ({ children }) => {
     return sessionStorage.getItem('ridesharex_admin_auth') === 'true';
   });
 
-  // Admin credentials state (localStorage-based lock)
+  // Admin credentials state (1st user exclusive claim lock)
   const [adminConfig, setAdminConfig] = useState(() => {
-    const saved = localStorage.getItem('ridesharex_admin_config');
-    return saved
-      ? JSON.parse(saved)
-      : {
-          email: 'admin@ridesharex.org',
-          password: 'admin123',
-          isConfigured: false
-        };
+    const saved = localStorage.getItem('ridesharex_admin_claim_v3');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // fallback
+      }
+    }
+    return {
+      email: '',
+      password: '',
+      isClaimed: false,
+      claimedAt: null,
+      ownerName: 'Platform Administrator'
+    };
   });
 
   // Global search parameters passed between homepage and search page
@@ -218,48 +225,102 @@ export const AppProvider = ({ children }) => {
     triggerToast('Passenger Login Successful', 'Welcome to your Passenger Dashboard', 'success');
   };
 
-  // Authenticate admin with credentials validation and owner master lock
+  // Claim 1st Master Admin Access
+  const claimFirstAdmin = (inputEmail, inputPassword, ownerName = 'Platform Administrator') => {
+    const cleanEmail = inputEmail?.trim().toLowerCase();
+    const cleanPwd = inputPassword?.trim();
+
+    if (!cleanEmail || !cleanPwd) {
+      triggerToast('Credentials Required', 'Please enter email and master password.', 'error');
+      return { success: false, error: 'Email and password are required.' };
+    }
+
+    const lockedConfig = {
+      email: cleanEmail,
+      password: cleanPwd,
+      isClaimed: true,
+      claimedAt: new Date().toISOString(),
+      ownerName: ownerName || 'Platform Administrator'
+    };
+
+    setAdminConfig(lockedConfig);
+    localStorage.setItem('ridesharex_admin_claim_v3', JSON.stringify(lockedConfig));
+
+    setCurrentRole('admin');
+    setCurrentUserId(admin.id);
+    setIsAdminAuthenticated(true);
+    sessionStorage.setItem('ridesharex_admin_auth', 'true');
+    setActiveTab('admin_dashboard');
+    triggerToast('Platform Owner Claimed!', 'You are registered as the exclusive Master Administrator.', 'success');
+    return { success: true };
+  };
+
+  // Authenticate admin with 1st person exclusive lock
   const loginAdmin = (inputEmail, inputPassword) => {
     const cleanEmail = inputEmail?.trim().toLowerCase();
     const cleanPwd = inputPassword?.trim();
 
-    // Check against configured master credentials or default master
+    // If not claimed yet, any first user logging in automatically claims owner access!
+    if (!adminConfig.isClaimed) {
+      return claimFirstAdmin(cleanEmail, cleanPwd);
+    }
+
+    // If ALREADY CLAIMED: STRICT CHECK ONLY!
+    const isOwnerMatch =
+      cleanEmail === adminConfig.email?.toLowerCase() &&
+      cleanPwd === adminConfig.password;
+
     const isMasterDefault =
-      ['admin@ridesharex.org', 'admin@ecoride.org', 'admin@rideshare.org'].includes(cleanEmail) &&
-      ['admin123', 'Admin@2026', 'RideshareX#Admin'].includes(cleanPwd);
+      (adminConfig.email === 'admin@ridesharex.org' || !adminConfig.email) &&
+      cleanEmail === 'admin@ridesharex.org' &&
+      cleanPwd === 'admin123';
 
-    const isConfiguredMaster =
-      cleanEmail === adminConfig.email?.toLowerCase() && cleanPwd === adminConfig.password;
-
-    if (isMasterDefault || isConfiguredMaster) {
-      if (!adminConfig.isConfigured) {
-        const locked = { email: cleanEmail, password: cleanPwd, isConfigured: true };
-        setAdminConfig(locked);
-        localStorage.setItem('ridesharex_admin_config', JSON.stringify(locked));
-      }
+    if (isOwnerMatch || isMasterDefault) {
       setCurrentRole('admin');
       setCurrentUserId(admin.id);
       setIsAdminAuthenticated(true);
       sessionStorage.setItem('ridesharex_admin_auth', 'true');
       setActiveTab('admin_dashboard');
-      triggerToast('Admin Authentication Successful', 'Welcome to Admin Control Panel', 'success');
+      triggerToast('Admin Authentication Successful', 'Welcome back, Platform Owner', 'success');
       return { success: true };
     } else {
-      triggerToast('Access Denied', 'Invalid administrator credentials. Access restricted.', 'error');
-      return { success: false, error: 'Access Denied: Invalid administrator credentials.' };
+      triggerToast('Access Denied', 'Only the 1st registered platform administrator can log in.', 'error');
+      return {
+        success: false,
+        error: 'Access Denied: Administrative access is strictly locked to the 1st registered Platform Owner. Other visitors cannot log in.'
+      };
     }
   };
 
   // Update master admin credentials
   const updateAdminCredentials = (newEmail, newPassword) => {
     const updated = {
+      ...adminConfig,
       email: newEmail.trim().toLowerCase(),
       password: newPassword.trim(),
-      isConfigured: true
+      isClaimed: true
     };
     setAdminConfig(updated);
-    localStorage.setItem('ridesharex_admin_config', JSON.stringify(updated));
+    localStorage.setItem('ridesharex_admin_claim_v3', JSON.stringify(updated));
     triggerToast('Admin Master Credentials Updated', 'Your administrator credentials have been saved.', 'success');
+  };
+
+  // Reset Admin Claim (Owner only, e.g. from inside dashboard)
+  const resetAdminClaim = () => {
+    const reset = {
+      email: '',
+      password: '',
+      isClaimed: false,
+      claimedAt: null,
+      ownerName: 'Platform Administrator'
+    };
+    setAdminConfig(reset);
+    localStorage.removeItem('ridesharex_admin_claim_v3');
+    setIsAdminAuthenticated(false);
+    sessionStorage.removeItem('ridesharex_admin_auth');
+    setCurrentRole('guest');
+    setActiveTab('home');
+    triggerToast('Admin Access Reset', 'Admin portal is now open for a new 1st-user registration.', 'info');
   };
 
   // Sign out
@@ -944,7 +1005,9 @@ export const AppProvider = ({ children }) => {
         triggerToast,
         setNotifications,
         adminConfig,
+        claimFirstAdmin,
         updateAdminCredentials,
+        resetAdminClaim,
         globalSearch,
         setGlobalSearch
       }}

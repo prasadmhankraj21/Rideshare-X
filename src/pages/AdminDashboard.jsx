@@ -16,7 +16,9 @@ import {
   ChevronRight,
   Eye,
   AlertOctagon,
-  Scale
+  Scale,
+  Lock,
+  KeyRound
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -32,7 +34,9 @@ export const AdminDashboard = () => {
     requestReverification,
     resolveCancellationDeposit,
     triggerToast,
-    logout
+    logout,
+    adminConfig,
+    resetAdminClaim
   } = useApp();
 
   const [adminTab, setAdminTab] = useState('overview'); // 'overview' | 'verifications' | 'users' | 'rides' | 'bookings' | 'cancellations'
@@ -154,7 +158,37 @@ export const AdminDashboard = () => {
 
       {/* TAB 1: OVERVIEW METRIC CARDS */}
       {adminTab === 'overview' && (
-        <div className="space-y-8">
+        <div className="space-y-6">
+          {/* Master Admin Security Card */}
+          <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-3xl p-6 border border-slate-800 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-900/60 border border-indigo-700 text-indigo-400 flex items-center justify-center shrink-0">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm text-white">Platform Owner Security Lock</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                    Active & Protected
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Exclusive Master Administrator: <strong className="text-white">{adminConfig?.email || 'admin@ridesharex.org'}</strong> (Registered 1st Admin)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+              <button
+                onClick={resetAdminClaim}
+                className="px-3.5 py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-300 hover:text-rose-300 rounded-xl border border-slate-700 transition font-semibold"
+                title="Reset owner lock if you want another user to register as 1st admin"
+              >
+                Release Owner Lock
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
