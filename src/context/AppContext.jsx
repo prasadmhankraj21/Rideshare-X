@@ -884,7 +884,7 @@ export const AppProvider = ({ children }) => {
             senderId: 'system',
             senderName: 'Rideshare_X',
             senderRole: 'system',
-            text: `Booking confirmed! Boarding PIN: ${boardingPin}. You can now coordinate pickup location on the map and chat directly here.`,
+            text: `Booking confirmed by driver! Co-travellers can now coordinate pickup location on the interactive map and chat directly here. Passenger will provide their 4-digit Boarding PIN upon arrival.`,
             timestamp: new Date().toISOString()
           }
         ];

@@ -19,7 +19,8 @@ import {
   AlertOctagon,
   Sparkles,
   Minus,
-  Plus
+  Plus,
+  KeyRound
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { LiveTrackingMap } from '../components/LiveTrackingMap';
@@ -253,7 +254,7 @@ export const PassengerDashboard = () => {
               className="w-full md:w-auto px-5 py-3 bg-white hover:bg-emerald-50 active:scale-95 text-emerald-800 font-black text-xs rounded-2xl shadow-lg flex items-center justify-center gap-2 transition"
             >
               <MapPin className="w-4 h-4 text-emerald-600" />
-              Open Ride Hub & PIN
+              View PIN & Pickup Map
             </button>
           </div>
         </div>
@@ -625,6 +626,18 @@ export const PassengerDashboard = () => {
                           <span className="font-semibold text-slate-800">{ride.driverName} ({ride.vehicleDetails})</span>
                         </div>
                       )}
+
+                      {bkg.boardingPin && (
+                        <div className="flex justify-between items-center bg-amber-50 border border-amber-200 p-2.5 rounded-2xl">
+                          <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                            <KeyRound className="w-4 h-4 text-amber-600" />
+                            Your Boarding PIN:
+                          </span>
+                          <span className="font-mono font-black text-base text-amber-900 tracking-widest bg-white px-2.5 py-0.5 rounded-lg border border-amber-300 shadow-xs">
+                            {bkg.boardingPin}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -636,7 +649,7 @@ export const PassengerDashboard = () => {
                           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5"
                         >
                           <MapPin className="w-3.5 h-3.5" />
-                          Pickup Hub & Chat Driver
+                          View PIN & Pickup Map
                         </button>
                         <button
                           onClick={() => {
