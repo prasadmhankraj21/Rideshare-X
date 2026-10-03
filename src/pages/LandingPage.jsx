@@ -22,16 +22,23 @@ import { useApp } from '../context/AppContext';
 import { CostSharingExplainer } from '../components/CostSharingExplainer';
 
 export const LandingPage = () => {
-  const { switchRole, setActiveTab, rides, setSelectedRideId } = useApp();
+  const { switchRole, setActiveTab, rides, setSelectedRideId, setGlobalSearch } = useApp();
 
-  const [searchFrom, setSearchFrom] = useState('Latur');
-  const [searchTo, setSearchTo] = useState('Pune');
-  const [searchDate, setSearchDate] = useState('2026-10-05');
+  const [searchFrom, setSearchFrom] = useState('');
+  const [searchTo, setSearchTo] = useState('');
+  const [searchDate, setSearchDate] = useState('');
   const [searchSeats, setSearchSeats] = useState(1);
 
   const handleQuickSearch = (e) => {
     e.preventDefault();
-    switchRole('passenger');
+    if (setGlobalSearch) {
+      setGlobalSearch({
+        from: searchFrom,
+        to: searchTo,
+        date: searchDate,
+        seats: searchSeats
+      });
+    }
     setActiveTab('search_rides');
   };
 

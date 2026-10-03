@@ -10,6 +10,7 @@ import { PassengerDashboard } from './pages/PassengerDashboard';
 import { AdminAuth } from './pages/AdminAuth';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { ProfileView } from './pages/ProfileView';
+import { SearchRidesPage } from './pages/SearchRidesPage';
 import { LiveTrackingMap } from './components/LiveTrackingMap';
 import {
   Car,
@@ -71,8 +72,10 @@ export function AppContent() {
 
         {/* Passenger Area */}
         {(activeTab === 'passenger_dashboard' ||
-          activeTab === 'search_rides' ||
           activeTab === 'my_bookings') && <PassengerDashboard />}
+
+        {/* Dedicated Search Rides View */}
+        {activeTab === 'search_rides' && <SearchRidesPage />}
 
         {/* Admin Area (Strictly Protected: Requires verified admin role) */}
         {(activeTab === 'admin_dashboard' ||

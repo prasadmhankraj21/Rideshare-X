@@ -31,7 +31,8 @@ export const AdminDashboard = () => {
     rejectDriverVerification,
     requestReverification,
     resolveCancellationDeposit,
-    triggerToast
+    triggerToast,
+    logout
   } = useApp();
 
   const [adminTab, setAdminTab] = useState('overview'); // 'overview' | 'verifications' | 'users' | 'rides' | 'bookings' | 'cancellations'
@@ -73,6 +74,14 @@ export const AdminDashboard = () => {
               {pendingVerifications.length} Verifications Pending
             </button>
           )}
+
+          <button
+            onClick={logout}
+            className="px-4 py-2 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 font-bold text-xs rounded-xl border border-slate-200 transition flex items-center gap-1.5"
+            title="Lock Admin Session and Return to Public Website"
+          >
+            Lock Admin Session
+          </button>
         </div>
       </div>
 

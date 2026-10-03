@@ -16,7 +16,7 @@ export const AdminAuth = ({ restrictedNotice = false }) => {
 
     const result = loginAdmin(email, password);
     if (!result?.success) {
-      setErrorMessage('Access Denied: Invalid administrator credentials. Please check your email and master password.');
+      setErrorMessage('Access Denied: Invalid administrator credentials. Only the authorized platform owner/admin can access this panel.');
     }
     setIsSubmitting(false);
   };
@@ -111,8 +111,9 @@ export const AdminAuth = ({ restrictedNotice = false }) => {
         </form>
 
         <div className="pt-3 border-t border-slate-100 text-center">
-          <p className="text-[11px] text-slate-400">
-            For security testing: use <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-mono">admin@ridesharex.org</code> / <code className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700 font-mono">admin123</code>
+          <p className="text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-slate-400" />
+            Strict Security: Gated platform administration portal.
           </p>
         </div>
       </div>

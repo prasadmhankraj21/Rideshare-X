@@ -139,15 +139,26 @@ export const Navbar = () => {
             <User className="w-3.5 h-3.5" />
             Passenger Area
           </button>
-          {currentRole === 'admin' && (
-            <button
-              onClick={() => setActiveTab('admin_dashboard')}
-              className="px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 bg-indigo-600 text-white shadow-sm font-bold"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Admin Panel
-            </button>
-          )}
+          <button
+            onClick={() => {
+              if (isAdminAuthenticated) {
+                switchRole('admin');
+              } else {
+                setActiveTab('admin_auth');
+              }
+            }}
+            className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+              currentRole === 'admin'
+                ? 'bg-indigo-600 text-white shadow-sm font-bold'
+                : activeTab === 'admin_auth'
+                ? 'bg-indigo-100 text-indigo-900 font-bold'
+                : 'text-slate-600 hover:text-indigo-700'
+            }`}
+            title="Administrator Control Panel (Restricted to Platform Owner)"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            Admin Portal
+          </button>
         </div>
 
         {/* Navigation Links based on role */}
@@ -156,19 +167,20 @@ export const Navbar = () => {
             <>
               <button
                 onClick={() => setActiveTab('home')}
-                className={`px-3 py-2 rounded-xl transition ${activeTab === 'home' ? 'text-emerald-700 bg-emerald-50' : 'hover:text-slate-900'}`}
+                className={`px-3 py-2 rounded-xl transition ${activeTab === 'home' ? 'text-emerald-700 bg-emerald-50 font-bold' : 'hover:text-slate-900'}`}
               >
                 Home
               </button>
               <button
                 onClick={() => setActiveTab('search_rides')}
-                className={`px-3 py-2 rounded-xl transition ${activeTab === 'search_rides' ? 'text-emerald-700 bg-emerald-50' : 'hover:text-slate-900'}`}
+                className={`px-3 py-2 rounded-xl transition flex items-center gap-1.5 ${activeTab === 'search_rides' ? 'text-emerald-700 bg-emerald-50 font-bold' : 'hover:text-slate-900'}`}
               >
+                <Search className="w-3.5 h-3.5 text-emerald-600" />
                 Find a Ride
               </button>
               <button
                 onClick={() => setActiveTab('how_it_works')}
-                className={`px-3 py-2 rounded-xl transition ${activeTab === 'how_it_works' ? 'text-emerald-700 bg-emerald-50' : 'hover:text-slate-900'}`}
+                className={`px-3 py-2 rounded-xl transition ${activeTab === 'how_it_works' ? 'text-emerald-700 bg-emerald-50 font-bold' : 'hover:text-slate-900'}`}
               >
                 How It Works
               </button>
@@ -176,13 +188,28 @@ export const Navbar = () => {
                 onClick={() => setActiveTab('driver_auth')}
                 className="px-3.5 py-2 text-emerald-700 font-bold hover:bg-emerald-50 rounded-xl transition"
               >
-                Driver Login
+                Driver Area
               </button>
               <button
                 onClick={() => setActiveTab('passenger_auth')}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-sm transition"
               >
                 Passenger Login
+              </button>
+              <button
+                onClick={() => {
+                  if (isAdminAuthenticated) switchRole('admin');
+                  else setActiveTab('admin_auth');
+                }}
+                className={`px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition ${
+                  activeTab === 'admin_auth' || activeTab === 'admin_dashboard'
+                    ? 'text-indigo-700 bg-indigo-50 font-bold'
+                    : 'text-indigo-700 hover:bg-indigo-50 font-semibold'
+                }`}
+                title="Admin Login (Platform Owner Only)"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Admin Portal
               </button>
             </>
           )}
@@ -512,20 +539,81 @@ export const Navbar = () => {
             >
               Passenger Area
             </button>
-            {currentRole === 'admin' && (
-              <button
-                onClick={() => {
-                  setActiveTab('admin_dashboard');
-                  setMobileMenuOpen(false);
-                }}
-                className="py-2 px-3 rounded-xl bg-indigo-100 text-indigo-800 text-center font-bold"
-              >
-                Admin Panel
-              </button>
-            )}
+            <button
+              onClick={() => {
+                if (isAdminAuthenticated) switchRole('admin');
+                else setActiveTab('admin_auth');
+                setMobileMenuOpen(false);
+              }}
+              className="py-2 px-3 rounded-xl bg-indigo-100 text-indigo-800 text-center font-bold flex items-center justify-center gap-1"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+              Admin Portal
+            </button>
           </div>
 
           <div className="space-y-1 text-sm font-semibold text-slate-700">
+            {currentRole === 'guest' && (
+              <>
+                <button
+                  onClick={() => {
+                    setActiveTab('home');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left py-2 px-3 rounded-xl hover:bg-slate-100 font-semibold"
+                >
+                  Home
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('search_rides');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left py-2 px-3 rounded-xl hover:bg-emerald-50 text-emerald-700 font-bold flex items-center gap-2"
+                >
+                  <Search className="w-4 h-4" />
+                  Find a Ride
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('how_it_works');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left py-2 px-3 rounded-xl hover:bg-slate-100 font-semibold"
+                >
+                  How It Works
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('driver_auth');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left py-2 px-3 rounded-xl hover:bg-slate-100 text-emerald-700 font-bold"
+                >
+                  Driver Area
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('passenger_auth');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left py-2 px-3 rounded-xl hover:bg-slate-100 text-emerald-700 font-bold"
+                >
+                  Passenger Login
+                </button>
+                <button
+                  onClick={() => {
+                    if (isAdminAuthenticated) switchRole('admin');
+                    else setActiveTab('admin_auth');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left py-2 px-3 rounded-xl hover:bg-indigo-50 text-indigo-700 font-bold flex items-center gap-2"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  Admin Portal (Platform Owner)
+                </button>
+              </>
+            )}
             {currentRole === 'driver' && (
               <>
                 <button

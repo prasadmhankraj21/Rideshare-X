@@ -62,6 +62,26 @@ export const AppProvider = ({ children }) => {
     return sessionStorage.getItem('ridesharex_admin_auth') === 'true';
   });
 
+  // Admin credentials state (localStorage-based lock)
+  const [adminConfig, setAdminConfig] = useState(() => {
+    const saved = localStorage.getItem('ridesharex_admin_config');
+    return saved
+      ? JSON.parse(saved)
+      : {
+          email: 'admin@ridesharex.org',
+          password: 'admin123',
+          isConfigured: false
+        };
+  });
+
+  // Global search parameters passed between homepage and search page
+  const [globalSearch, setGlobalSearch] = useState({
+    from: '',
+    to: '',
+    date: '',
+    seats: 1
+  });
+
   // Current session role: 'guest' | 'driver' | 'passenger' | 'admin'
   const [currentRole, setCurrentRole] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.ROLE);
@@ -198,26 +218,48 @@ export const AppProvider = ({ children }) => {
     triggerToast('Passenger Login Successful', 'Welcome to your Passenger Dashboard', 'success');
   };
 
-  // Authenticate admin with credentials validation
+  // Authenticate admin with credentials validation and owner master lock
   const loginAdmin = (inputEmail, inputPassword) => {
-    const validEmails = ['admin@ridesharex.org', 'admin@ecoride.org', 'admin@rideshare.org'];
-    const validPasswords = ['admin123', 'Admin@2026', 'RideshareX#Admin'];
+    const cleanEmail = inputEmail?.trim().toLowerCase();
+    const cleanPwd = inputPassword?.trim();
 
-    if (
-      validEmails.includes(inputEmail?.trim().toLowerCase()) &&
-      validPasswords.includes(inputPassword?.trim())
-    ) {
+    // Check against configured master credentials or default master
+    const isMasterDefault =
+      ['admin@ridesharex.org', 'admin@ecoride.org', 'admin@rideshare.org'].includes(cleanEmail) &&
+      ['admin123', 'Admin@2026', 'RideshareX#Admin'].includes(cleanPwd);
+
+    const isConfiguredMaster =
+      cleanEmail === adminConfig.email?.toLowerCase() && cleanPwd === adminConfig.password;
+
+    if (isMasterDefault || isConfiguredMaster) {
+      if (!adminConfig.isConfigured) {
+        const locked = { email: cleanEmail, password: cleanPwd, isConfigured: true };
+        setAdminConfig(locked);
+        localStorage.setItem('ridesharex_admin_config', JSON.stringify(locked));
+      }
       setCurrentRole('admin');
       setCurrentUserId(admin.id);
       setIsAdminAuthenticated(true);
       sessionStorage.setItem('ridesharex_admin_auth', 'true');
       setActiveTab('admin_dashboard');
-      triggerToast('Admin Logged In', 'Administrative Control Panel is active', 'success');
+      triggerToast('Admin Authentication Successful', 'Welcome to Admin Control Panel', 'success');
       return { success: true };
     } else {
       triggerToast('Access Denied', 'Invalid administrator credentials. Access restricted.', 'error');
-      return { success: false, error: 'Invalid admin email or password.' };
+      return { success: false, error: 'Access Denied: Invalid administrator credentials.' };
     }
+  };
+
+  // Update master admin credentials
+  const updateAdminCredentials = (newEmail, newPassword) => {
+    const updated = {
+      email: newEmail.trim().toLowerCase(),
+      password: newPassword.trim(),
+      isConfigured: true
+    };
+    setAdminConfig(updated);
+    localStorage.setItem('ridesharex_admin_config', JSON.stringify(updated));
+    triggerToast('Admin Master Credentials Updated', 'Your administrator credentials have been saved.', 'success');
   };
 
   // Sign out
@@ -900,7 +942,11 @@ export const AppProvider = ({ children }) => {
         toggleRouteOptimization,
         resetDemoData,
         triggerToast,
-        setNotifications
+        setNotifications,
+        adminConfig,
+        updateAdminCredentials,
+        globalSearch,
+        setGlobalSearch
       }}
     >
       {children}
